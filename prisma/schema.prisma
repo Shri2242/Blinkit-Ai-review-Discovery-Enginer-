@@ -1,0 +1,108 @@
+// ReviewPulse — AI-Powered Review Discovery Engine
+// Prisma schema (SQLite). Adapted from the monorepo spec.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// A product/workspace being analyzed (e.g. "Spotify — Music Discovery")
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  reviews  Review[]
+  sources  CollectorSource[]
+}
+
+/// A single user review collected from an app store, Reddit, Twitter, or CSV upload.
+model Review {
+  id             String   @id @default(cuid())
+  projectId      String
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  text           String
+  title          String?
+  rating         Int      // 1-5
+  reviewDate     DateTime
+  source         String   // google_play | app_store | reddit | twitter | csv_upload
+  author         String
+  sourceReviewId String?
+  contentHash    String?
+
+  // AI analysis (populated by the AI processor)
+  processed        Boolean  @default(false)
+  sentiment        String?  // positive | negative | neutral | mixed
+  sentimentScore   Float?   // 0-1 confidence
+  theme            String?
+  subTheme         String?
+  priority         String?  // critical | high | medium | low
+  priorityReason   String?
+  summary          String?
+  keyPhrases       String?  // JSON-encoded array of strings
+  isBug            Boolean  @default(false)
+  isFeatureRequest Boolean  @default(false)
+  isActionable     Boolean  @default(false)
+  analyzedAt       DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([projectId])
+  @@index([processed])
+  @@index([sentiment])
+  @@index([theme])
+  @@index([source])
+  @@index([rating])
+}
+
+/// An automated review collection source (Google Play, App Store, Reddit, Twitter).
+model CollectorSource {
+  id             String   @id @default(cuid())
+  projectId      String
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  sourceType     String   // google_play | app_store | reddit | twitter
+  name           String
+  config         String   // JSON-encoded config (appId, subreddit, query, etc.)
+  enabled        Boolean  @default(true)
+  schedule       String   @default("0 9 * * *")
+
+  lastRunAt      DateTime?
+  lastRunStatus  String?  // success | partial | failed
+  lastRunCount   Int      @default(0)
+  totalCollected Int      @default(0)
+  errorMessage   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  logs CollectorLog[]
+}
+
+/// Run history for a collector source.
+model CollectorLog {
+  id              String   @id @default(cuid())
+  sourceId        String
+  source          CollectorSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  status          String   // success | partial | failed
+  reviewsFetched  Int      @default(0)
+  reviewsNew      Int      @default(0)
+  reviewsDuplicate Int     @default(0)
+  durationMs      Int      @default(0)
+  errorMessage    String?
+
+  startedAt   DateTime
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([sourceId])
+}
