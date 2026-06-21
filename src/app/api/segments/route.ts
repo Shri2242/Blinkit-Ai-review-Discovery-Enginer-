@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { ensureProject } from "@/lib/server";
+import { errorResponse } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/segments — multi-dimensional segmentation of reviews.
 // Returns: byRating, bySource, bySentiment, byTheme, themeByRating, themeBySource.
 export async function GET(req: NextRequest) {
+  try {
   const projectId = req.nextUrl.searchParams.get("projectId") || undefined;
   const project = await ensureProject(projectId);
 
@@ -117,4 +119,7 @@ export async function GET(req: NextRequest) {
       .slice(0, 10),
     total: all.length,
   });
+  } catch (err) {
+    return errorResponse(err);
+  }
 }

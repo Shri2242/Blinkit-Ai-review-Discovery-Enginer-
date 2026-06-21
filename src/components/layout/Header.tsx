@@ -3,8 +3,19 @@
 import { useState, useRef, useEffect } from "react";
 import { useApp, type ViewKey } from "@/store/app";
 import { api } from "@/lib/api";
-import { Bell, Search, Github, ExternalLink, LogOut, ChevronDown, Check, User as UserIcon } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { Bell, Search, Github, ExternalLink, LogOut, ChevronDown, Check, User as UserIcon, Plus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 const VIEW_TITLES: Record<ViewKey, { title: string; crumb: string }> = {
   landing: { title: "Home", crumb: "Home" },
@@ -22,12 +33,42 @@ const VIEW_TITLES: Record<ViewKey, { title: string; crumb: string }> = {
 };
 
 export function Header({ onOpenLanding }: { onOpenLanding: () => void }) {
-  const { view, user, projects, activeProjectId, setActiveProject, clearAuth, setView } = useApp();
+  const { view, user, projects, activeProjectId, setActiveProject, clearAuth, setView, setAuth } = useApp();
+  const { toast } = useToast();
   const meta = VIEW_TITLES[view] ?? VIEW_TITLES.overview;
   const [menuOpen, setMenuOpen] = useState(false);
   const [projOpen, setProjOpen] = useState(false);
+  const [newProjOpen, setNewProjOpen] = useState(false);
+  const [projName, setProjName] = useState("");
+  const [projDesc, setProjDesc] = useState("");
+  const [creating, setCreating] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const projRef = useRef<HTMLDivElement>(null);
+
+  const createProject = async () => {
+    if (!projName.trim()) {
+      toast({ title: "Project name required", variant: "destructive" });
+      return;
+    }
+    setCreating(true);
+    try {
+      await api.createProject({ name: projName.trim(), description: projDesc.trim() || undefined });
+      // Refresh projects + user session.
+      const me = await api.me();
+      setAuth({ user: me.user, projects: me.projects });
+      const newP = me.projects[me.projects.length - 1];
+      if (newP) setActiveProject(newP.id);
+      toast({ title: "Project created", description: projName.trim() });
+      setProjName("");
+      setProjDesc("");
+      setNewProjOpen(false);
+      setProjOpen(false);
+    } catch (err) {
+      toast({ title: "Failed to create project", description: err instanceof Error ? err.message : "", variant: "destructive" });
+    } finally {
+      setCreating(false);
+    }
+  };
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
@@ -97,6 +138,13 @@ export function Header({ onOpenLanding }: { onOpenLanding: () => void }) {
                     </span>
                   </button>
                 ))}
+                <div className="my-1 border-t border-border/60" />
+                <button
+                  onClick={() => { setNewProjOpen(true); setProjOpen(false); }}
+                  className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs font-medium text-primary hover:bg-primary/10"
+                >
+                  <Plus className="h-3.5 w-3.5" /> New project
+                </button>
               </div>
             )}
           </div>
@@ -162,6 +210,35 @@ export function Header({ onOpenLanding }: { onOpenLanding: () => void }) {
           )}
         </div>
       </div>
+
+      {/* Create Project modal */}
+      <Dialog open={newProjOpen} onOpenChange={setNewProjOpen}>
+        <DialogContent className="border-border/60 bg-popover">
+          <DialogHeader>
+            <DialogTitle>Create a new project</DialogTitle>
+            <DialogDescription>
+              Projects are isolated workspaces. Each has its own reviews, sources, team, and API keys. You'll be the admin.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="proj-name">Project name</Label>
+              <Input id="proj-name" value={projName} onChange={(e) => setProjName(e.target.value)} placeholder="e.g. Spotify — Podcast Discovery" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="proj-desc">Description (optional)</Label>
+              <Input id="proj-desc" value={projDesc} onChange={(e) => setProjDesc(e.target.value)} placeholder="What is this project analyzing?" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setNewProjOpen(false)}>Cancel</Button>
+            <Button onClick={createProject} disabled={creating} className="gap-2">
+              {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              Create project
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </header>
   );
 }

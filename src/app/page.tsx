@@ -10,24 +10,15 @@ import { DashboardShell } from "@/components/dashboard/DashboardShell";
 export default function Home() {
   const { view, user, authReady, setAuth, setView } = useApp();
 
-  // On first load: check the session. If none, ensure the DB is seeded (so the
-  // demo login works) — seeding also creates the default admin user.
+  // On first load: check the session. If authenticated, load the user + projects.
+  // If not authenticated, do NOT auto-seed — the user must log in or register first.
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
         const me = await api.me();
         if (!alive) return;
-        if (me.user) {
-          setAuth({ user: me.user, projects: me.projects });
-        } else {
-          // Not logged in — make sure the demo user/project exist.
-          const status = await api.seedStatus();
-          if (!status.seeded) {
-            await api.seed();
-          }
-          setAuth({ user: null, projects: [] });
-        }
+        setAuth({ user: me.user, projects: me.projects });
       } catch {
         if (alive) setAuth({ user: null, projects: [] });
       }
@@ -37,8 +28,7 @@ export default function Home() {
     };
   }, [setAuth]);
 
-  // While the session check is in flight, render a minimal loader (avoids
-  // flashing the landing page's "Sign in" CTA for authed users).
+  // Loading state while the session check is in flight.
   if (!authReady) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">

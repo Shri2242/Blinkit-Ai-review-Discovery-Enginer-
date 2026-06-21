@@ -328,3 +328,53 @@ Work Log:
 
 Stage Summary:
 - ALL real-backend upgrades browser-verified. The app now has: real auth (scrypt+JWT), real RBAC (3 roles enforced on mutations), real API keys (SHA-256 hashed, raw shown once), real neural embeddings (384-dim, cosine similarity RAG), real Reddit collector, Zod validation, security headers + rate limiting, 105 reviews, 6 deployment artifacts. Every primary interaction verified working in the browser.
+
+---
+Task ID: f8
+Agent: settings-prod-tab-builder
+Task: Add Production Setup tab + Clear reviews button to Settings page.
+
+Work Log:
+- Read /home/z/my-project/worklog.md (Task r2-r11 context: real-backend upgrade with envStatus API, clearReviews API, neural embeddings, 105 reviews) and /home/z/my-project/src/components/dashboard/settings.tsx (322 lines, 3 tabs: general/apikeys/danger, imports already include useEffect/useCallback).
+- Confirmed api.clearReviews(projectId?) and api.envStatus() signatures in /home/z/my-project/src/lib/api.ts — envStatus returns {database, jwtSecret, ai.deepseek, embeddings, auth.google, auth.twilio, redis, appUrl, nodeEnv}; clearReviews returns {ok, deleted}.
+- Confirmed ChartCard signature in /home/z/my-project/src/components/dashboard/shared.tsx supports title/subtitle/children/action/className props; confirmed rp-bg-positive (green) and rp-bg-mixed (amber) utility classes exist in globals.css.
+- Made 9 surgical MultiEdit operations on settings.tsx (no full rewrite):
+  1. Added `type ReactNode` to react import.
+  2. Added `Bot, Boxes, Chrome, Phone, type LucideIcon` to lucide-react import.
+  3. Inserted module-scope `type EnvStatus`, `PROD_ENV_VARS_BLOCK` template string, and a `ProdStatusRow` helper component (icon + name + configured/amber badge + children description) before SettingsView.
+  4. Added 5 new state vars: envStatus, envLoading, clearReviewsOpen, clearingReviews, envCopied.
+  5. Added loadEnvStatus useCallback + included it in the mount useEffect (alongside loadKeys + loadEmbed).
+  6. Added clearReviews async fn (calls api.clearReviews(activeProjectId), toasts count, navigates to overview) and copyEnvVars fn (clipboard + 2s copied flag) after reseed fn.
+  7. Added `<TabsTrigger value="prod">Production Setup</TabsTrigger>` between apikeys and danger triggers.
+  8. Inserted `<TabsContent value="prod">` between apikeys and danger content: a "Production setup" ChartCard with 7 ProdStatusRow rows (Database with sqlite warning, JWT Secret, AI Provider DeepSeek with base URL, Embeddings always green, Google OAuth, Phone SMS Twilio, Redis) + a "Required for production" ChartCard with `<pre>` env-vars block and a Copy button in the card action slot.
+  9. Added a red-tinted "Clear all reviews" row ABOVE the amber "Reseed" row in Danger Zone, plus a new confirmation Dialog (reusing the existing Dialog pattern) with red-outlined confirm button that calls clearReviews.
+- All 7 prod rows use the correct icon per spec (Database/Key/Bot/Boxes/Chrome/Phone/Database), green "Configured" badge (rp-bg-positive + text-emerald-400) or amber "Not configured" badge (rp-bg-mixed + text-amber-400).
+- "Clear all reviews" row description explicitly addresses the "reviews persist after deleting sources" concern and notes sources/projects/API keys are preserved.
+- Did NOT run build/lint per task instructions. No other files modified.
+
+Stage Summary:
+- Settings page now has 4 tabs: General / API Keys / Production Setup / Danger Zone.
+- Production Setup tab fetches /api/config/env on mount and renders a live status panel for 7 production dependencies + a copyable env-vars cheat sheet, giving operators a single glanceable readiness checklist.
+- Danger Zone now offers a non-destructive "Clear all reviews" action (deletes reviews only, preserves sources/projects/keys) above the more destructive "Reseed" and "Delete project" actions, directly resolving the orphaned-reviews-after-source-delete concern.
+- File grew from 322 to 500 lines, all edits surgical and consistent with the existing dark editorial theme (rp-bg-* tokens, ChartCard wrapper, Dialog pattern, lucide icons).
+
+---
+Task ID: f1-f9 (real-features upgrade)
+Agent: main (orchestrator)
+Task: Fix all user-reported issues: no data without login, create project, guest/google/phone login, DeepSeek, clear reviews, production setup panel.
+
+Work Log:
+- FIXED auth-gating: removed demo fallback from resolveProject/ensureProject. All data routes (stats/reviews/segments/insights/chat/embed) now return 401 without a valid session. Verified: stats HTTP 401 without cookie, 200 with.
+- Added Continue as Guest: POST /api/auth/guest creates a real guest user (authProvider=guest, no password) with VIEWER role on the demo project. Verified in browser: signed in as "Guest e6f18d46 / VIEWER".
+- Added Google Sign-In: GET /api/auth/google returns 503 with setup instructions when GOOGLE_CLIENT_ID not set; redirects to real Google OAuth when configured. UI button calls it and shows a clear toast if not configured.
+- Added Phone OTP auth: POST /api/auth/phone/send generates a real 6-digit code (in-memory store with 5-min TTL + 5-attempt limit); POST /api/auth/phone/verify checks it and creates/finds a phone-auth user. Dev mode returns the code in the response (shown in amber banner) so the flow is demonstrable; real SMS when TWILIO_* set. Verified: wrong code rejected with attempt count, correct code creates user.
+- Added Create Project: Header project selector now has a "New project" button → modal with name + description → calls POST /api/projects (already existed) → refreshes session + switches to new project. Verified in browser.
+- Added DeepSeek integration: src/lib/deepseek.ts (real HTTP client for deepseek-chat). src/lib/ai.ts callLLM() now prefers DeepSeek when DEEPSEEK_API_KEY set, falls back to z-ai-web-dev-sdk. activeLLMProvider() exported for display.
+- Added Clear all reviews: DELETE /api/reviews/clear (admin only) wipes reviews + embeddings for a project, preserving sources. Danger Zone tab now has this button with a confirmation dialog + explanation "Useful if reviews persist after deleting sources."
+- Added Production Setup tab in Settings: fetches /api/config/env, shows real status of Database, JWT Secret, DeepSeek, Embeddings, Google OAuth, Twilio, Redis — each with green "Configured" or amber "Not configured" badge + exact setup instructions. Includes a copyable env-vars block listing every variable needed for production.
+- Added first-run setup: POST /api/auth/setup (idempotent — only works if 0 users exist) creates the default admin + demo project + 105 reviews + session. AuthView shows a "Run first-run setup" button when needsSetup is true.
+- bun run lint: 0 errors, 0 warnings.
+- Agent Browser verified: landing → login view (Email/Phone/Google/Guest) → guest login → dashboard → create project modal → Settings Production Setup tab (real env status) → Danger Zone Clear reviews button. No console errors.
+
+Stage Summary:
+- Every user-reported issue fixed: (1) no data without login, (2) create project feature, (3) guest + Google + phone login, (4) DeepSeek integration (real when key set), (5) clear reviews button, (6) production setup panel showing exactly what env vars are needed. All real, no fakes.

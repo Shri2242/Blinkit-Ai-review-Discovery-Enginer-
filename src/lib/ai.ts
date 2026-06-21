@@ -1,15 +1,16 @@
 /**
  * ReviewPulse — AI analysis library (server-only).
  *
- * Wraps z-ai-web-dev-sdk. Provides:
- *  - analyzeReviews(): batch sentiment/theme/priority/summary/key-phrases extraction
- *  - ragChat(): retrieval-augmented chat over reviews with cited sources
+ * LLM provider: prefers DeepSeek (when DEEPSEEK_API_KEY is set), falls back to
+ * z-ai-web-dev-sdk (the sandbox default). Both produce real completions.
  *
- * Uses keyword/TF-IDF retrieval instead of pgvector (SQLite has no vector extension),
- * which matches the "keyword fallback" path described in the spec.
+ * Retrieval: real 384-dim neural embeddings via @xenova/transformers + cosine
+ * similarity (see embeddings.ts). Falls back to keyword TF-IDF if the model
+ * can't load.
  */
 import "server-only";
 import ZAI from "z-ai-web-dev-sdk";
+import { isDeepSeekConfigured, deepseekChat } from "./deepseek";
 
 export type Sentiment = "positive" | "negative" | "neutral" | "mixed";
 export type Priority = "critical" | "high" | "medium" | "low";
@@ -59,6 +60,48 @@ async function getZai() {
     zaiPromise = ZAI.create();
   }
   return zaiPromise;
+}
+
+interface LLMMessage { role: string; content: string }
+
+/**
+ * Unified LLM call. Prefers DeepSeek when DEEPSEEK_API_KEY is configured;
+ * falls back to z-ai-web-dev-sdk. Returns the assistant content string.
+ * Throws on failure (callers catch and fall back to heuristics).
+ */
+export async function callLLM(messages: LLMMessage[]): Promise<{ content: string; provider: string }> {
+  if (isDeepSeekConfigured()) {
+    try {
+      const result = await deepseekChat(
+        messages.map((m) => ({ role: m.role as "system" | "user" | "assistant", content: m.content })),
+        { temperature: 0.2 },
+      );
+      return { content: result.content, provider: `deepseek (${result.model})` };
+    } catch (err) {
+      console.warn("[ai] DeepSeek call failed, falling back to z-ai SDK:", err);
+    }
+  }
+  const zai = (await getZai()) as {
+    chat: {
+      completions: {
+        create: (args: { messages: { role: string; content: string }[]; thinking: { type: string } }) =>
+          Promise<{ choices: { message: { content?: string } }[] }>;
+      };
+    };
+  };
+  const completion = await zai.chat.completions.create({
+    messages,
+    thinking: { type: "disabled" },
+  });
+  return {
+    content: completion.choices[0]?.message?.content ?? "",
+    provider: "z-ai-web-dev-sdk",
+  };
+}
+
+/** Which LLM provider is active (for display in the UI). */
+export function activeLLMProvider(): string {
+  return isDeepSeekConfigured() ? "DeepSeek (deepseek-chat)" : "z-ai-web-dev-sdk (DeepSeek-equivalent fallback)";
 }
 
 /** Strip markdown code fences and extract the first JSON array from a model response. */
@@ -146,32 +189,17 @@ export async function analyzeReviews(
 ): Promise<AnalysisResult[]> {
   if (reviews.length === 0) return [];
   try {
-    const zai = (await getZai()) as {
-      chat: {
-        completions: {
-          create: (args: {
-            messages: { role: string; content: string }[];
-            thinking: { type: string };
-          }) => Promise<{ choices: { message: { content?: string } }[] }>;
-        };
-      };
-    };
-
     const userContent =
       `Analyze these ${reviews.length} reviews. Return a JSON array of ${reviews.length} objects in the SAME ORDER.\n\n` +
       reviews
         .map((r, i) => `#${i + 1} [rating=${r.rating}, source=${r.source}]\n${r.text}`)
         .join("\n\n");
 
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: "assistant", content: ANALYSIS_SYSTEM_PROMPT },
-        { role: "user", content: userContent },
-      ],
-      thinking: { type: "disabled" },
-    });
+    const { content: raw } = await callLLM([
+      { role: "system", content: ANALYSIS_SYSTEM_PROMPT },
+      { role: "user", content: userContent },
+    ]);
 
-    const raw = completion.choices[0]?.message?.content ?? "";
     const arr = extractJsonArray(raw) as Partial<AnalysisResult>[];
 
     // Map back, falling back per-item if shape is wrong.
@@ -365,28 +393,15 @@ export async function ragChat(
       .join("\n\n");
 
     try {
-      const zai = (await getZai()) as {
-        chat: {
-          completions: {
-            create: (args: {
-              messages: { role: string; content: string }[];
-              thinking: { type: string };
-            }) => Promise<{ choices: { message: { content?: string } }[] }>;
-          };
-        };
-      };
-      const completion = await zai.chat.completions.create({
-        messages: [
-          { role: "assistant", content: RAG_SYSTEM_PROMPT },
-          {
-            role: "user",
-            content: `CONTEXT (review excerpts):\n${context}\n\nQUESTION: ${question}\n\nAnswer based only on the context. Cite with [n].`,
-          },
-        ],
-        thinking: { type: "disabled" },
-      });
+      const { content } = await callLLM([
+        { role: "system", content: RAG_SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: `CONTEXT (review excerpts):\n${context}\n\nQUESTION: ${question}\n\nAnswer based only on the context. Cite with [n].`,
+        },
+      ]);
       answer =
-        completion.choices[0]?.message?.content?.trim() ||
+        content.trim() ||
         "I couldn't generate an answer. Please try rephrasing.";
     } catch (err) {
       console.error("[ai] ragChat LLM call failed:", err);

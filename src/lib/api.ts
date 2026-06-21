@@ -59,6 +59,14 @@ export const api = {
     jsonFetch<{ ok: boolean; user: AuthUser }>("/api/auth/login", { method: "POST", body: JSON.stringify(data) }),
   logout: () => jsonFetch<{ ok: boolean }>("/api/auth/logout", { method: "POST" }),
   me: () => jsonFetch<{ user: AuthUser | null; projects: AuthProject[] }>("/api/auth/me"),
+  guest: () => jsonFetch<{ ok: boolean; user: AuthUser; project: { id: string; name: string } }>("/api/auth/guest", { method: "POST" }),
+  setupStatus: () => jsonFetch<{ needsSetup: boolean; userCount: number }>("/api/auth/setup"),
+  setup: () => jsonFetch<{ ok: boolean; user: AuthUser; project: { id: string; name: string }; demoCredentials: { email: string; password: string } }>("/api/auth/setup", { method: "POST" }),
+  googleStatus: () => jsonFetch<{ ok: boolean; configured: boolean; error?: string; setup?: unknown }>("/api/auth/google"),
+  phoneSend: (phone: string) =>
+    jsonFetch<{ ok: boolean; sent: boolean; devMode: boolean; devCode?: string; hint?: string; expiresIn: number }>("/api/auth/phone/send", { method: "POST", body: JSON.stringify({ phone }) }),
+  phoneVerify: (phone: string, code: string) =>
+    jsonFetch<{ ok: boolean; user: AuthUser }>("/api/auth/phone/verify", { method: "POST", body: JSON.stringify({ phone, code }) }),
 
   /* ---- Projects ---- */
   listProjects: () => jsonFetch<{ projects: AuthProject[] }>("/api/projects"),
@@ -118,6 +126,22 @@ export const api = {
   createApiKey: (name: string) =>
     jsonFetch<{ ok: boolean; key: { id: string; name: string; raw: string; prefix: string; createdAt: string } }>("/api/apikeys", { method: "POST", body: JSON.stringify({ name }) }),
   revokeApiKey: (id: string) => jsonFetch<{ ok: boolean }>(`/api/apikeys/${id}`, { method: "DELETE" }),
+
+  /* ---- Reviews management ---- */
+  clearReviews: (projectId?: string | null) =>
+    jsonFetch<{ ok: boolean; deleted: number }>(withProject("/api/reviews/clear", projectId), { method: "DELETE" }),
+
+  /* ---- Config / env status ---- */
+  envStatus: () => jsonFetch<{
+    database: { configured: boolean; provider: string; isProduction: boolean };
+    jwtSecret: { configured: boolean };
+    ai: { deepseek: { configured: boolean; baseUrl: string }; zai: { configured: boolean; note: string } };
+    embeddings: { model: string; local: boolean; note: string };
+    auth: { google: { configured: boolean }; twilio: { configured: boolean }; email: { configured: boolean; note: string }; guest: { configured: boolean; note: string } };
+    redis: { configured: boolean };
+    appUrl: string | null;
+    nodeEnv: string;
+  }>("/api/config/env"),
 };
 
 export const SOURCE_LABELS: Record<string, string> = {
