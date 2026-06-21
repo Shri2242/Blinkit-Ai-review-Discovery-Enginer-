@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { ensureProject } from "@/lib/server";
 
@@ -6,8 +6,9 @@ export const dynamic = "force-dynamic";
 
 // GET /api/segments — multi-dimensional segmentation of reviews.
 // Returns: byRating, bySource, bySentiment, byTheme, themeByRating, themeBySource.
-export async function GET() {
-  const project = await ensureProject();
+export async function GET(req: NextRequest) {
+  const projectId = req.nextUrl.searchParams.get("projectId") || undefined;
+  const project = await ensureProject(projectId);
 
   const all = await db.review.findMany({
     where: { projectId: project.id, processed: true },

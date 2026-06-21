@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { api, SOURCE_LABELS, themeLabel, sentimentColor } from "@/lib/api";
 import type { Segments } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { useApp } from "@/store/app";
 import { Layers, Grid3x3, Star, Bug, Lightbulb } from "lucide-react";
 
 /* ============================================================
@@ -230,12 +231,13 @@ export function SegmentsView() {
   const [data, setData] = useState<Segments | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const activeProjectId = useApp((s) => s.activeProjectId);
 
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
-        const d = await api.segments();
+        const d = await api.segments(activeProjectId);
         if (alive) setData(d);
       } catch (e) {
         if (alive)
@@ -247,7 +249,7 @@ export function SegmentsView() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [activeProjectId]);
 
   if (loading) {
     return (

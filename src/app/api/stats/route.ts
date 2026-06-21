@@ -1,12 +1,13 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { ensureProject } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/stats — dashboard overview stats.
-export async function GET() {
-  const project = await ensureProject();
+export async function GET(req: NextRequest) {
+  const projectId = req.nextUrl.searchParams.get("projectId") || undefined;
+  const project = await ensureProject(projectId);
 
   const [
     total,

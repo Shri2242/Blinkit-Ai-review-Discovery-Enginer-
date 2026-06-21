@@ -1,21 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { ensureProject } from "@/lib/server";
-import { collectSampleReviews } from "@/lib/collectors";
+import { requireProjectAccess, errorResponse, logActivity } from "@/lib/rbac";
+import { collectReviews } from "@/lib/collectors";
+import { collectSchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
+interface SourceConfig {
+  [k: string]: unknown;
+}
 
 // POST /api/collect — run a collector source (by id) or all enabled sources.
 // Body: { sourceId?: string }
-// Returns a summary of fetched/new/duplicate counts.
 export async function POST(req: NextRequest) {
   try {
-    const project = await ensureProject();
     const body = await req.json().catch(() => ({}));
-    const sourceId = typeof body?.sourceId === "string" ? body.sourceId : null;
+    const parsed = collectSchema.safeParse(body);
+    if (!parsed.success) return errorResponse(parsed.error);
+
+    const projectId = req.nextUrl.searchParams.get("projectId") || undefined;
+    const ctx = await requireProjectAccess(projectId, "analyst");
 
     const sources = await db.collectorSource.findMany({
-      where: { projectId: project.id, ...(sourceId ? { id: sourceId } : { enabled: true }) },
+      where: { projectId: ctx.project!.id, ...(parsed.data.sourceId ? { id: parsed.data.sourceId } : { enabled: true }) },
     });
 
     if (sources.length === 0) {
@@ -27,12 +35,18 @@ export async function POST(req: NextRequest) {
       const startedAt = new Date();
       const start = Date.now();
       try {
-        const fetched = collectSampleReviews(source.sourceType, source.name);
+        let config: SourceConfig = {};
+        try {
+          config = JSON.parse(source.config) as SourceConfig;
+        } catch {
+          config = {};
+        }
+        const { reviews: fetched, real } = await collectReviews(source.sourceType, source.name, config);
         let newCount = 0;
         let dupCount = 0;
         for (const r of fetched) {
           const existing = await db.review.findFirst({
-            where: { projectId: project.id, sourceReviewId: r.sourceReviewId },
+            where: { projectId: ctx.project!.id, sourceReviewId: r.sourceReviewId },
           });
           if (existing) {
             dupCount++;
@@ -40,7 +54,7 @@ export async function POST(req: NextRequest) {
           }
           await db.review.create({
             data: {
-              projectId: project.id,
+              projectId: ctx.project!.id,
               text: r.text,
               title: r.title,
               rating: r.rating,
@@ -77,7 +91,7 @@ export async function POST(req: NextRequest) {
             completedAt,
           },
         });
-        results.push({ sourceId: source.id, name: source.name, fetched: fetched.length, new: newCount, duplicate: dupCount });
+        results.push({ sourceId: source.id, name: source.name, fetched: fetched.length, new: newCount, duplicate: dupCount, real });
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unknown error";
         await db.collectorSource.update({
@@ -101,12 +115,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    await logActivity(ctx.user.id, "collect.run", ctx.project!.id, { count: results.length });
     return NextResponse.json({ ok: true, results });
   } catch (err) {
-    console.error("[api/collect] failed:", err);
-    return NextResponse.json(
-      { ok: false, error: err instanceof Error ? err.message : "Unknown error" },
-      { status: 500 },
-    );
+    return errorResponse(err);
   }
 }

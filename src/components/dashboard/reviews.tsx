@@ -557,6 +557,7 @@ function FiltersPanel({
 
 export function ReviewsView() {
   const { searchQuery, setSearchQuery } = useApp();
+  const activeProjectId = useApp((s) => s.activeProjectId);
   const { toast } = useToast();
 
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -582,7 +583,7 @@ export function ReviewsView() {
     let alive = true;
     setLoading(true);
     api
-      .reviews(filtersToParams(filters))
+      .reviews(filtersToParams(filters), activeProjectId)
       .then((data) => {
         if (!alive) return;
         setReviews(data.reviews);
@@ -603,7 +604,7 @@ export function ReviewsView() {
     return () => {
       alive = false;
     };
-  }, [filters]);
+  }, [filters, activeProjectId]);
 
   const askAI = useCallback(
     async (q: string) => {
@@ -614,7 +615,7 @@ export function ReviewsView() {
       setAiSources([]);
       setShowCitedOnly(false);
       try {
-        const res = await api.chat(trimmed);
+        const res = await api.chat(trimmed, activeProjectId);
         setAiAnswer(res.answer);
         setAiSources(res.sources);
         setAiQuestion(trimmed);

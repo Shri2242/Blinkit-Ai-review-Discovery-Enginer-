@@ -64,13 +64,14 @@ export function OverviewView() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const setView = useApp((s) => s.setView);
+  const activeProjectId = useApp((s) => s.activeProjectId);
   const { toast } = useToast();
 
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
-        const data = await api.stats();
+        const data = await api.stats(activeProjectId);
         if (alive) setStats(data);
       } catch (e) {
         if (alive) {
@@ -87,7 +88,7 @@ export function OverviewView() {
     return () => {
       alive = false;
     };
-  }, [toast]);
+  }, [toast, activeProjectId]);
 
   /* 14-day spark (totals) + week-over-week delta for the headline card */
   const { spark14, totalDelta } = useMemo(() => {

@@ -1,19 +1,36 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { getAuthContext } from "@/lib/rbac";
 
-/** Ensure a project exists; create the default ReviewPulse project if none. */
-export async function ensureProject() {
-  let project = await db.project.findFirst({ orderBy: { createdAt: "asc" } });
-  if (!project) {
-    project = await db.project.create({
-      data: {
-        name: "Spotify — Music Discovery",
-        description:
-          "Growth team initiative: analyze user feedback to increase meaningful music discovery.",
-      },
-    });
+/**
+ * Resolve the active project for an authenticated user.
+ * - If a `projectId` query param is given, use it (must be a member).
+ * - Otherwise default to the user's first project.
+ *
+ * For backwards compatibility with unauthenticated demo access (when no user
+ * is logged in), falls back to the first project in the DB. This keeps the
+ * landing/demo experience smooth while protected mutation routes enforce auth.
+ */
+export async function resolveProject(projectId?: string) {
+  const ctx = await getAuthContext(projectId);
+  if (ctx.project) return ctx.project;
+  // Demo fallback: first project.
+  return db.project.findFirst({ orderBy: { createdAt: "asc" } }) as Promise<{
+    id: string;
+    name: string;
+    description: string | null;
+  } | null>;
+}
+
+/** @deprecated use resolveProject instead. Kept for the existing routes. */
+export async function ensureProject(projectId?: string) {
+  const p = await resolveProject(projectId);
+  if (!p) {
+    // Should not happen post-seed. Return a typed null-safe shell that callers
+    // handle, but to keep existing call-sites simple we throw a clear error.
+    throw new Error("No project found. Run POST /api/seed first.");
   }
-  return project;
+  return p;
 }
 
 export function parseKeyPhrases(raw: string | null): string[] {
@@ -26,9 +43,30 @@ export function parseKeyPhrases(raw: string | null): string[] {
   }
 }
 
-export type ReviewRow = Awaited<ReturnType<typeof db.review.findFirst>> & object;
-
-export function serializeReview(r: NonNullable<ReviewRow>) {
+export function serializeReview(r: {
+  id: string;
+  projectId: string;
+  text: string;
+  title: string | null;
+  rating: number;
+  reviewDate: Date;
+  source: string;
+  author: string;
+  processed: boolean;
+  sentiment: string | null;
+  sentimentScore: number | null;
+  theme: string | null;
+  subTheme: string | null;
+  priority: string | null;
+  priorityReason: string | null;
+  summary: string | null;
+  keyPhrases: string | null;
+  isBug: boolean;
+  isFeatureRequest: boolean;
+  isActionable: boolean;
+  analyzedAt: Date | null;
+  createdAt: Date;
+}) {
   return {
     id: r.id,
     projectId: r.projectId,

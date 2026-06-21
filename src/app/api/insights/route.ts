@@ -1,12 +1,13 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { ensureProject, parseKeyPhrases } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/insights — data-driven insight generation (no LLM call; computed from review data).
-export async function GET() {
-  const project = await ensureProject();
+export async function GET(req: NextRequest) {
+  const projectId = req.nextUrl.searchParams.get("projectId") || undefined;
+  const project = await ensureProject(projectId);
 
   const reviews = await db.review.findMany({
     where: { projectId: project.id, processed: true },

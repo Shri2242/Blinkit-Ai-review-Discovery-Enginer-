@@ -1,0 +1,64 @@
+# =============================================================================
+# ReviewPulse — Railway deployment config
+# =============================================================================
+# Deploys the Next.js app (frontend + API in one process) as a Railway
+# service. Pair with a Railway Postgres plugin (with the pgvector
+# extension enabled) for production.
+#
+# Quick start:
+#   railway up
+#
+# Required Railway variables (set via `railway variables set` or the UI):
+#   DATABASE_URL  — Postgres connection string from the Railway Postgres
+#                   plugin (with ?sslmode=require).
+#   JWT_SECRET    — A 32+ char random string (`openssl rand -hex 32`).
+#
+# Optional Railway variables:
+#   PORT          — Set automatically by Railway (defaults to 3000 in code).
+#   NODE_ENV      — Set to "production" by Railway in deploys.
+# =============================================================================
+
+[deploy]
+# Railway will detect the Next.js project and run `next build` for us.
+# The build script in package.json also copies .next/static + public
+# into .next/standalone so the standalone server can serve them.
+buildCommand = "bun run build"
+
+# The standalone server produced by `next build` (next.config.ts has
+# output: "standalone"). Falls back to `next start` if Bun isn't
+# available on the runner — both work, Bun is faster cold-start.
+startCommand = "bun .next/standalone/server.js"
+
+# Healthcheck: Railway will retry until this returns 200, then mark
+# the service as "Running". If it fails N times in a row, the deploy
+# rolls back.
+healthcheckPath = "/api/health"
+healthcheckTimeout = 30
+
+# Restart policy: restart on crash, up to 10 times within a 5-minute
+# window. Beyond that, leave it stopped so we don't hide a real bug.
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+[deploy.env]
+# These are placeholders — Railway will inject the real values from the
+# service-level variables. Listing them here so `railway variables` has
+# a self-documenting surface.
+NODE_ENV = "production"
+# PORT is auto-injected by Railway.
+
+# -----------------------------------------------------------------------------
+# Notes
+# -----------------------------------------------------------------------------
+# 1. The standalone server reads `process.env.PORT` (Node http default
+#    when no port is set is 3000). Railway injects PORT automatically.
+# 2. The standalone server does NOT read .env files at runtime — all
+#    config must be in the process environment. Set DATABASE_URL and
+#    JWT_SECRET in the Railway service variables (not a .env file).
+# 3. The first deploy will run `prisma generate` as part of `bun install`
+#    (via the postinstall hook if you add one). For the initial schema
+#    push, run `railway run pnpm exec prisma db push` once against the
+#    Postgres plugin, or wire it into the GitHub Actions daily-collection
+#    workflow (which already calls `prisma db push`).
+# 4. To enable pgvector on the Railway Postgres plugin, run once:
+#      railway run psql "$DATABASE_URL" -c "CREATE EXTENSION IF NOT EXISTS vector;"

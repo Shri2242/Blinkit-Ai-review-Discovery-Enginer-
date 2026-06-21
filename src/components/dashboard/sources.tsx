@@ -75,6 +75,7 @@ import {
 } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
+import { useApp } from "@/store/app";
 import { cn } from "@/lib/utils";
 import { api, SOURCE_LABELS } from "@/lib/api";
 import type { CollectorSource } from "@/lib/types";
@@ -210,6 +211,7 @@ function formatDuration(ms: number): string {
 
 export function SourcesView() {
   const { toast } = useToast();
+  const activeProjectId = useApp((s) => s.activeProjectId);
   const [sources, setSources] = useState<CollectorSource[]>([]);
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
@@ -220,7 +222,7 @@ export function SourcesView() {
 
   const refresh = useCallback(async () => {
     try {
-      const data = await api.sources();
+      const data = await api.sources(activeProjectId);
       setSources(data.sources);
     } catch (e) {
       toast({
@@ -263,7 +265,7 @@ export function SourcesView() {
   const runOne = async (source: CollectorSource) => {
     setRunningId(source.id);
     try {
-      const r = await api.collect(source.id);
+      const r = await api.collect(source.id, activeProjectId);
       const res = r.results?.[0];
       if (res?.error) {
         toast({
@@ -292,7 +294,7 @@ export function SourcesView() {
   const runAll = async () => {
     setRunningAll(true);
     try {
-      const r = await api.collect();
+      const r = await api.collect(undefined, activeProjectId);
       const fetched = r.results.reduce((a, x) => a + (x.fetched ?? 0), 0);
       const newCount = r.results.reduce((a, x) => a + (x.new ?? 0), 0);
       const dup = r.results.reduce((a, x) => a + (x.duplicate ?? 0), 0);
@@ -722,7 +724,7 @@ function AddSourceDialog({
         name: name.trim(),
         config,
         schedule: schedule.trim() || DEFAULT_SCHEDULE,
-      });
+      }, activeProjectId);
       toast({
         title: "Source created",
         description: `${name.trim()} is now collecting reviews.`,

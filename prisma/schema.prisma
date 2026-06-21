@@ -1,5 +1,10 @@
 // ReviewPulse — AI-Powered Review Discovery Engine
-// Prisma schema (SQLite). Adapted from the monorepo spec.
+// Prisma schema (SQLite). Portable to PostgreSQL + pgvector for production.
+//
+// NOTE on vector storage: SQLite has no native vector type, so ReviewEmbedding
+// stores the 384-dim vector as a JSON string and cosine similarity is computed
+// in-process. In a Postgres+pgvector deployment the only change would be the
+// `embedding` column type (VECTOR(384)) and a <=> distance operator in the query.
 
 generator client {
   provider = "prisma-client-js"
@@ -10,16 +15,52 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/// A product/workspace being analyzed (e.g. "Spotify — Music Discovery")
+/// A registered user. Passwords are hashed with scrypt (crypto.scrypt, RFC 7914).
+/// Auth provider can be 'email' (password) or 'google'/'phone' (firebase_uid, no password).
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String?  // null for OAuth users
+  authProvider String   @default("email") // email | google | phone
+  firebaseUid  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships  ProjectMember[]
+  apiKeys      ApiKey[]
+  ownedProjects Project[] @relation("OwnedProject")
+  activity     ActivityLog[]
+}
+
+/// A product/workspace being analyzed (e.g. "Spotify — Music Discovery").
 model Project {
   id          String   @id @default(cuid())
   name        String
   description String?
+  ownerId     String
+  owner       User     @relation("OwnedProject", fields: [ownerId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  reviews  Review[]
-  sources  CollectorSource[]
+  reviews     Review[]
+  sources     CollectorSource[]
+  members     ProjectMember[]
+}
+
+/// Membership + role-based access control. Roles: admin | analyst | viewer.
+model ProjectMember {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String   @default("analyst") // admin | analyst | viewer
+  invitedBy String?
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, userId])
+  @@index([userId])
 }
 
 /// A single user review collected from an app store, Reddit, Twitter, or CSV upload.
@@ -52,6 +93,8 @@ model Review {
   isActionable     Boolean  @default(false)
   analyzedAt       DateTime?
 
+  embedding        ReviewEmbedding?
+
   createdAt DateTime @default(now())
 
   @@index([projectId])
@@ -60,6 +103,24 @@ model Review {
   @@index([theme])
   @@index([source])
   @@index([rating])
+  @@index([sourceReviewId])
+  @@index([contentHash])
+}
+
+/// A 384-dimensional embedding vector for a review.
+/// Stored as a JSON string of numbers (SQLite). In Postgres this would be VECTOR(384).
+/// Used for real cosine-similarity semantic search in the RAG chat.
+model ReviewEmbedding {
+  id              String   @id @default(cuid())
+  reviewId        String   @unique
+  review          Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  projectId       String
+  embeddingModel  String   @default("tfidf-v1") // or "xenova/all-MiniLM-L6-v2"
+  dimensions      Int      @default(384)
+  embedding       String   // JSON-encoded number[] vector
+  createdAt       DateTime @default(now())
+
+  @@index([projectId])
 }
 
 /// An automated review collection source (Google Play, App Store, Reddit, Twitter).
@@ -105,4 +166,34 @@ model CollectorLog {
   createdAt DateTime @default(now())
 
   @@index([sourceId])
+}
+
+/// API keys for programmatic access. The raw key is shown only once at creation;
+/// the stored `keyHash` is the SHA-256 of the raw key. `prefix` is stored in
+/// plaintext so the UI can display "rpk_live_4f9a…" without the secret.
+model ApiKey {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  keyHash   String   @unique // SHA-256 hex of the raw key
+  prefix    String   // first 16 chars, stored plaintext for display
+  lastUsedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+/// Audit trail of significant actions (auth, collection, ingestion, analysis).
+model ActivityLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String   // e.g. "auth.login", "ingest.upload", "collect.run"
+  projectId String?
+  metadata  String?  // JSON string
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([projectId])
 }

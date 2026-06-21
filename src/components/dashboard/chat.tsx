@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import type { ChatSource } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useApp } from "@/store/app";
 import {
   Bot,
   User,
@@ -218,6 +219,7 @@ export function ChatView() {
   const [sending, setSending] = useState(false);
   const [reviewCount, setReviewCount] = useState<number | null>(null);
   const { toast } = useToast();
+  const activeProjectId = useApp((s) => s.activeProjectId);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -247,7 +249,7 @@ export function ChatView() {
       setSending(true);
 
       try {
-        const res = await api.chat(q);
+        const res = await api.chat(q, activeProjectId);
         setReviewCount(res.reviewCount);
         setMessages((prev) =>
           prev.map((m) =>

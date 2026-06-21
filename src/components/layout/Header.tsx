@@ -1,12 +1,15 @@
 "use client";
 
+import { useState, useRef, useEffect } from "react";
 import { useApp, type ViewKey } from "@/store/app";
-import { Bell, Search, Github, Sparkles, ExternalLink } from "lucide-react";
+import { api } from "@/lib/api";
+import { Bell, Search, Github, ExternalLink, LogOut, ChevronDown, Check, User as UserIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 
 const VIEW_TITLES: Record<ViewKey, { title: string; crumb: string }> = {
   landing: { title: "Home", crumb: "Home" },
+  login: { title: "Sign in", crumb: "Auth / Sign in" },
+  register: { title: "Sign up", crumb: "Auth / Sign up" },
   overview: { title: "Overview", crumb: "Dashboard / Overview" },
   reviews: { title: "Reviews", crumb: "Dashboard / Reviews" },
   sources: { title: "Sources", crumb: "Dashboard / Sources" },
@@ -19,8 +22,34 @@ const VIEW_TITLES: Record<ViewKey, { title: string; crumb: string }> = {
 };
 
 export function Header({ onOpenLanding }: { onOpenLanding: () => void }) {
-  const { view } = useApp();
+  const { view, user, projects, activeProjectId, setActiveProject, clearAuth, setView } = useApp();
   const meta = VIEW_TITLES[view] ?? VIEW_TITLES.overview;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [projOpen, setProjOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const projRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+      if (projRef.current && !projRef.current.contains(e.target as Node)) setProjOpen(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, []);
+
+  const logout = async () => {
+    try {
+      await api.logout();
+    } catch {
+      /* ignore */
+    }
+    clearAuth();
+    setView("landing");
+  };
+
+  const activeProject = projects.find((p) => p.id === activeProjectId) ?? projects[0];
+  const initials = user?.name?.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase() ?? "U";
 
   return (
     <header className="flex h-16 shrink-0 items-center justify-between gap-4 border-b border-border/60 bg-background/80 px-5 backdrop-blur">
@@ -37,6 +66,41 @@ export function Header({ onOpenLanding }: { onOpenLanding: () => void }) {
           <span>Search reviews…</span>
           <kbd className="ml-2 rounded border border-border/60 bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">⌘K</kbd>
         </div>
+
+        {/* Project selector */}
+        {projects.length > 0 && (
+          <div className="relative" ref={projRef}>
+            <button
+              onClick={() => setProjOpen((v) => !v)}
+              className="flex items-center gap-2 rounded-md border border-border/60 bg-secondary/40 px-3 py-1.5 text-xs hover:bg-secondary/60"
+            >
+              <span className="max-w-[140px] truncate font-medium text-foreground">{activeProject?.name ?? "Project"}</span>
+              <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium uppercase text-primary">{activeProject?.role}</span>
+              <ChevronDown className="h-3 w-3 text-muted-foreground" />
+            </button>
+            {projOpen && (
+              <div className="absolute right-0 top-full z-50 mt-1 min-w-[220px] rounded-md border border-border/60 bg-popover p-1 shadow-xl">
+                <p className="px-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground">Your projects</p>
+                {projects.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => {
+                      setActiveProject(p.id);
+                      setProjOpen(false);
+                    }}
+                    className="flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-secondary/60"
+                  >
+                    <span className="truncate text-foreground">{p.name}</span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[9px] uppercase text-primary">{p.role}</span>
+                      {p.id === activeProjectId && <Check className="h-3 w-3 text-primary" />}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground" onClick={onOpenLanding}>
           <ExternalLink className="h-3.5 w-3.5" />
@@ -58,25 +122,46 @@ export function Header({ onOpenLanding }: { onOpenLanding: () => void }) {
           <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-primary" />
         </button>
 
-        <div className="flex items-center gap-2 rounded-md border border-border/60 bg-secondary/40 py-1 pl-1 pr-3">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-gradient-to-br from-primary to-emerald-500 text-xs font-semibold text-white">
-            PM
-          </div>
-          <div className="hidden leading-none sm:block">
-            <p className="text-xs font-medium text-foreground">Product Manager</p>
-            <p className="text-[10px] text-muted-foreground">Fellowship · 2026</p>
-          </div>
+        {/* User menu */}
+        <div className="relative" ref={menuRef}>
+          <button
+            onClick={() => setMenuOpen((v) => !v)}
+            className="flex items-center gap-2 rounded-md border border-border/60 bg-secondary/40 py-1 pl-1 pr-2 hover:bg-secondary/60"
+          >
+            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-gradient-to-br from-primary to-emerald-500 text-xs font-semibold text-white">
+              {initials}
+            </div>
+            <div className="hidden leading-none sm:block">
+              <p className="max-w-[120px] truncate text-xs font-medium text-foreground">{user?.name ?? "User"}</p>
+              <p className="max-w-[120px] truncate text-[10px] text-muted-foreground">{user?.email}</p>
+            </div>
+            <ChevronDown className="h-3 w-3 text-muted-foreground" />
+          </button>
+          {menuOpen && (
+            <div className="absolute right-0 top-full z-50 mt-1 min-w-[200px] rounded-md border border-border/60 bg-popover p-1 shadow-xl">
+              <div className="border-b border-border/60 px-2 py-2">
+                <p className="text-xs font-medium text-foreground">{user?.name}</p>
+                <p className="truncate text-[11px] text-muted-foreground">{user?.email}</p>
+              </div>
+              <button
+                onClick={() => {
+                  setView("settings");
+                  setMenuOpen(false);
+                }}
+                className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-foreground hover:bg-secondary/60"
+              >
+                <UserIcon className="h-3.5 w-3.5" /> Settings
+              </button>
+              <button
+                onClick={logout}
+                className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-red-400 hover:bg-red-500/10"
+              >
+                <LogOut className="h-3.5 w-3.5" /> Sign out
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </header>
-  );
-}
-
-export function HeaderBadge({ children }: { children: React.ReactNode }) {
-  return (
-    <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
-      <Sparkles className="mr-1 h-3 w-3" />
-      {children}
-    </Badge>
   );
 }

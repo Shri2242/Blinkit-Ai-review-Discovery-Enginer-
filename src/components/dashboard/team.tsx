@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { SectionHeader, ChartCard } from "@/components/dashboard/shared";
+import { useEffect, useState, useCallback } from "react";
+import { useApp } from "@/store/app";
+import { api } from "@/lib/api";
+import { SectionHeader, ChartCard, LoadingBlock, EmptyState } from "@/components/dashboard/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,22 +17,16 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { UserPlus, Mail, Crown, Eye, ShieldCheck, MoreHorizontal } from "lucide-react";
+import { UserPlus, Mail, Crown, Eye, ShieldCheck, Trash2, RefreshCw } from "lucide-react";
 
 interface Member {
   id: string;
+  userId: string;
   name: string;
   email: string;
   role: "admin" | "analyst" | "viewer";
   addedAt: string;
 }
-
-const INITIAL: Member[] = [
-  { id: "1", name: "You (PM)", email: "pm@reviewpulse.dev", role: "admin", addedAt: "2026-05-01" },
-  { id: "2", name: "Aisha Rahman", email: "aisha@reviewpulse.dev", role: "analyst", addedAt: "2026-05-04" },
-  { id: "3", name: "Marco Bianchi", email: "marco@reviewpulse.dev", role: "analyst", addedAt: "2026-05-09" },
-  { id: "4", name: "Lena Vogel", email: "lena@reviewpulse.dev", role: "viewer", addedAt: "2026-05-12" },
-];
 
 const ROLE_STYLE: Record<Member["role"], { label: string; cls: string; icon: typeof Crown }> = {
   admin: { label: "Admin", cls: "rp-bg-critical", icon: Crown },
@@ -39,36 +35,67 @@ const ROLE_STYLE: Record<Member["role"], { label: string; cls: string; icon: typ
 };
 
 export function TeamView() {
-  const [members, setMembers] = useState<Member[]>(INITIAL);
+  const { activeProjectId, user } = useApp();
+  const { toast } = useToast();
+  const [members, setMembers] = useState<Member[]>([]);
+  const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState<Member["role"]>("analyst");
-  const { toast } = useToast();
 
-  const invite = () => {
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await api.listMembers(activeProjectId);
+      setMembers(data.members as Member[]);
+    } catch (e) {
+      toast({ title: "Failed to load team", description: e instanceof Error ? e.message : "", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  }, [activeProjectId, toast]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const invite = async () => {
     if (!email.trim() || !name.trim()) {
       toast({ title: "Name and email are required", variant: "destructive" });
       return;
     }
-    const m: Member = {
-      id: `m_${Date.now()}`,
-      name: name.trim(),
-      email: email.trim(),
-      role,
-      addedAt: new Date().toISOString().slice(0, 10),
-    };
-    setMembers((prev) => [...prev, m]);
-    toast({ title: `Invitation sent to ${m.email}`, description: `Role: ${ROLE_STYLE[role].label}` });
-    setEmail("");
-    setName("");
-    setRole("analyst");
-    setOpen(false);
+    try {
+      const res = await api.inviteMember({ email: email.trim(), name: name.trim(), role }, activeProjectId);
+      setMembers((prev) => [...prev, { id: res.member.id, userId: res.member.userId, name: res.member.name, email: res.member.email, role: res.member.role as Member["role"], addedAt: new Date().toISOString() }]);
+      toast({ title: `Invited ${res.member.email}`, description: `Role: ${ROLE_STYLE[role].label}` });
+      setEmail("");
+      setName("");
+      setRole("analyst");
+      setOpen(false);
+    } catch (e) {
+      toast({ title: "Invite failed", description: e instanceof Error ? e.message : "", variant: "destructive" });
+    }
   };
 
-  const removeMember = (id: string) => {
-    setMembers((prev) => prev.filter((m) => m.id !== id));
-    toast({ title: "Member removed" });
+  const changeRole = async (userId: string, newRole: Member["role"]) => {
+    try {
+      await api.updateMemberRole(userId, newRole, activeProjectId);
+      setMembers((prev) => prev.map((m) => (m.userId === userId ? { ...m, role: newRole } : m)));
+      toast({ title: "Role updated" });
+    } catch (e) {
+      toast({ title: "Update failed", description: e instanceof Error ? e.message : "", variant: "destructive" });
+    }
+  };
+
+  const removeMember = async (userId: string) => {
+    try {
+      await api.removeMember(userId, activeProjectId);
+      setMembers((prev) => prev.filter((m) => m.userId !== userId));
+      toast({ title: "Member removed" });
+    } catch (e) {
+      toast({ title: "Remove failed", description: e instanceof Error ? e.message : "", variant: "destructive" });
+    }
   };
 
   return (
@@ -77,47 +104,70 @@ export function TeamView() {
         title="Team"
         description="Manage who has access to this project and their role. RBAC: admin (manage), analyst (edit), viewer (read)."
         action={
-          <Button onClick={() => setOpen(true)} className="gap-2">
-            <UserPlus className="h-4 w-4" /> Invite Member
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={load}>
+              <RefreshCw className="h-3.5 w-3.5" /> Refresh
+            </Button>
+            <Button onClick={() => setOpen(true)} className="gap-2">
+              <UserPlus className="h-4 w-4" /> Invite Member
+            </Button>
+          </div>
         }
       />
 
       <ChartCard title="Members" subtitle={`${members.length} member${members.length === 1 ? "" : "s"} with access`}>
-        <ul className="divide-y divide-border/60">
-          {members.map((m) => {
-            const r = ROLE_STYLE[m.role];
-            const Icon = r.icon;
-            return (
-              <li key={m.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary/80 to-emerald-500/80 text-xs font-semibold text-white">
-                    {m.name.split(" ").map((p) => p[0]).slice(0, 2).join("")}
+        {loading ? (
+          <LoadingBlock label="Loading members…" />
+        ) : members.length === 0 ? (
+          <EmptyState title="No members" description="Invite team members to collaborate." />
+        ) : (
+          <ul className="divide-y divide-border/60">
+            {members.map((m) => {
+              const r = ROLE_STYLE[m.role];
+              const Icon = r.icon;
+              const isSelf = m.userId === user?.id;
+              return (
+                <li key={m.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary/80 to-emerald-500/80 text-xs font-semibold text-white">
+                      {m.name.split(" ").map((p) => p[0]).slice(0, 2).join("")}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-foreground">
+                        {m.name} {isSelf && <span className="text-[10px] text-muted-foreground">(you)</span>}
+                      </p>
+                      <p className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+                        <Mail className="h-3 w-3" />
+                        {m.email}
+                      </p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-foreground">{m.name}</p>
-                    <p className="flex items-center gap-1 truncate text-xs text-muted-foreground">
-                      <Mail className="h-3 w-3" />
-                      {m.email}
-                    </p>
+                  <div className="flex items-center gap-2">
+                    <Select value={m.role} onValueChange={(v) => changeRole(m.userId, v as Member["role"])}>
+                      <SelectTrigger className="h-8 w-[110px] text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="analyst">Analyst</SelectItem>
+                        <SelectItem value="viewer">Viewer</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <span className={`hidden items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase sm:inline-flex ${r.cls}`}>
+                      <Icon className="h-3 w-3" />
+                      {r.label}
+                    </span>
+                    {!isSelf && (
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-red-400" onClick={() => removeMember(m.userId)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                   </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase ${r.cls}`}>
-                    <Icon className="h-3 w-3" />
-                    {r.label}
-                  </span>
-                  <span className="hidden text-xs text-muted-foreground sm:inline">{m.addedAt}</span>
-                  {m.id !== "1" && (
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-red-400" onClick={() => removeMember(m.id)}>
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </ChartCard>
 
       <ChartCard title="Roles & permissions" subtitle="RBAC matrix for this project">
@@ -157,7 +207,7 @@ export function TeamView() {
           <DialogHeader>
             <DialogTitle>Invite a team member</DialogTitle>
             <DialogDescription>
-              They'll receive an email invitation to join this project with the role you choose.
+              They'll be added to this project with the role you choose. (In production an email invite with a token would be sent.)
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">

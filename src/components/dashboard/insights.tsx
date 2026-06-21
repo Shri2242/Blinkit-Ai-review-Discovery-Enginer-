@@ -37,12 +37,13 @@ export function InsightsView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const setView = useApp((s) => s.setView);
+  const activeProjectId = useApp((s) => s.activeProjectId);
 
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
-        const data = await api.insights();
+        const data = await api.insights(activeProjectId);
         if (alive) setInsights(data);
       } catch (e) {
         console.error(e);
@@ -54,7 +55,7 @@ export function InsightsView() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [activeProjectId]);
 
   if (loading) {
     return (

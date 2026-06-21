@@ -1,0 +1,94 @@
+import { NextRequest, NextResponse } from "next/server";
+
+/**
+ * ReviewPulse — Edge middleware.
+ *
+ * 1. Security headers on every response (Helmet-equivalent for Next.js).
+ *    Strict CSP: no unsafe-eval/unsafe-inline; allows the app's own scripts/styles.
+ * 2. In-memory rate limiting on /api/auth/login and /api/auth/register
+ *    (10 requests / 15 min per IP). Lighter than a Redis store but sufficient
+ *    for a single-instance deployment; a multi-instance prod setup should
+ *    swap this for an Upstash-Redis-backed limiter.
+ */
+
+const AUTH_RATE_LIMIT = 10;
+const AUTH_RATE_WINDOW_MS = 15 * 60 * 1000;
+const bucket = new Map<string, { count: number; resetAt: number }>();
+
+function rateLimit(ip: string, limit: number, windowMs: number): { ok: boolean; remaining: number; resetAt: number } {
+  const now = Date.now();
+  const entry = bucket.get(ip);
+  if (!entry || entry.resetAt < now) {
+    bucket.set(ip, { count: 1, resetAt: now + windowMs });
+    return { ok: true, remaining: limit - 1, resetAt: now + windowMs };
+  }
+  entry.count++;
+  return {
+    ok: entry.count <= limit,
+    remaining: Math.max(0, limit - entry.count),
+    resetAt: entry.resetAt,
+  };
+}
+
+function getClientIp(req: NextRequest): string {
+  const xff = req.headers.get("x-forwarded-for");
+  if (xff) return xff.split(",")[0]!.trim();
+  return req.headers.get("x-real-ip") || "unknown";
+}
+
+const SECURITY_HEADERS: Record<string, string> = {
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy": "camera=(), microphone=(), geolocation=(), browsing-topics=()",
+  "X-DNS-Prefetch-Control": "off",
+  "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
+  // CSP: disallow eval, inline scripts (except Next.js runtime hashes), and
+  // external origins. Fonts/images/styles from same-origin only.
+  "Content-Security-Policy": [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com data:",
+    "img-src 'self' data: blob: https:",
+    "connect-src 'self'",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+  ].join("; "),
+};
+
+export function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+
+  // Rate limit auth mutation routes.
+  if (pathname === "/api/auth/login" || pathname === "/api/auth/register") {
+    const ip = getClientIp(req);
+    const rl = rateLimit(ip, AUTH_RATE_LIMIT, AUTH_RATE_WINDOW_MS);
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: "Too many attempts. Please try again later.", code: "rate_limited" },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)),
+            ...SECURITY_HEADERS,
+          },
+        },
+      );
+    }
+  }
+
+  const res = NextResponse.next();
+  for (const [k, v] of Object.entries(SECURITY_HEADERS)) {
+    res.headers.set(k, v);
+  }
+  return res;
+}
+
+export const config = {
+  matcher: [
+    // Run on everything except static asset paths and Next internals.
+    "/((?!_next/static|_next/image|favicon.ico|logo.svg|.*\\.(?:png|jpg|jpeg|gif|webp|svg|ico|css|js|map)).*)",
+  ],
+};

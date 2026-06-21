@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { SectionHeader, ChartCard } from "@/components/dashboard/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,42 +17,84 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useApp } from "@/store/app";
 import { api } from "@/lib/api";
-import { Key, Plus, Copy, Trash2, AlertTriangle, RefreshCw, Database } from "lucide-react";
+import { Key, Plus, Copy, Trash2, AlertTriangle, RefreshCw, Database, Check } from "lucide-react";
 
 interface ApiKey {
   id: string;
   name: string;
   prefix: string;
   createdAt: string;
-  lastUsed: string | null;
+  lastUsedAt: string | null;
 }
 
 export function SettingsView() {
-  const [keys, setKeys] = useState<ApiKey[]>([
-    { id: "k1", name: "Production ingestion", prefix: "rpk_live_4f9a", createdAt: "2026-05-02", lastUsed: "2 hours ago" },
-    { id: "k2", name: "Dev notebook", prefix: "rpk_live_8b21", createdAt: "2026-05-10", lastUsed: "yesterday" },
-  ]);
+  const [keys, setKeys] = useState<ApiKey[]>([]);
+  const [keysLoading, setKeysLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [newKeyName, setNewKeyName] = useState("");
+  const [rawKey, setRawKey] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [reseeding, setReseeding] = useState(false);
+  const [embedInfo, setEmbedInfo] = useState<{ coverage: number; model: string; neural: boolean; withEmbedding: number; processed: number } | null>(null);
   const { toast } = useToast();
-  const setView = useApp((s) => s.setView);
+  const { setView, activeProjectId, user } = useApp();
 
-  const generateKey = () => {
+  const loadKeys = useCallback(async () => {
+    setKeysLoading(true);
+    try {
+      const res = await api.listApiKeys();
+      setKeys(res.keys as ApiKey[]);
+    } catch (e) {
+      toast({ title: "Failed to load API keys", variant: "destructive", description: e instanceof Error ? e.message : "" });
+    } finally {
+      setKeysLoading(false);
+    }
+  }, [toast]);
+
+  const loadEmbed = useCallback(async () => {
+    try {
+      const res = await api.embedStatus(activeProjectId);
+      setEmbedInfo({ coverage: res.coverage, model: res.model, neural: res.neural, withEmbedding: res.withEmbedding, processed: res.processed });
+    } catch {
+      /* ignore */
+    }
+  }, [activeProjectId]);
+
+  useEffect(() => {
+    loadKeys();
+    loadEmbed();
+  }, [loadKeys, loadEmbed]);
+
+  const generateKey = async () => {
     if (!newKeyName.trim()) return;
-    const prefix = `rpk_live_${Math.random().toString(36).slice(2, 6)}`;
-    const k: ApiKey = {
-      id: `k_${Date.now()}`,
-      name: newKeyName.trim(),
-      prefix,
-      createdAt: new Date().toISOString().slice(0, 10),
-      lastUsed: null,
-    };
-    setKeys((prev) => [k, ...prev]);
-    toast({ title: "API key created", description: `Copy it now — it won't be shown again: ${prefix}…` });
-    setNewKeyName("");
-    setOpen(false);
+    try {
+      const res = await api.createApiKey(newKeyName.trim());
+      setRawKey(res.key.raw);
+      setKeys((prev) => [{ id: res.key.id, name: res.key.name, prefix: res.key.prefix, createdAt: res.key.createdAt, lastUsedAt: null }, ...prev]);
+      toast({ title: "API key created", description: "Copy it now — the raw value is shown only once." });
+      setNewKeyName("");
+      setOpen(false);
+    } catch (e) {
+      toast({ title: "Failed to create key", variant: "destructive", description: e instanceof Error ? e.message : "" });
+    }
+  };
+
+  const revokeKey = async (id: string) => {
+    try {
+      await api.revokeApiKey(id);
+      setKeys((prev) => prev.filter((k) => k.id !== id));
+      toast({ title: "API key revoked" });
+    } catch (e) {
+      toast({ title: "Revoke failed", variant: "destructive", description: e instanceof Error ? e.message : "" });
+    }
+  };
+
+  const copyRaw = () => {
+    if (!rawKey) return;
+    navigator.clipboard?.writeText(rawKey);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const reseed = async () => {
@@ -89,7 +131,7 @@ export function SettingsView() {
               </div>
               <div className="space-y-1.5">
                 <Label>Owner</Label>
-                <Input defaultValue="pm@reviewpulse.dev" disabled />
+                <Input defaultValue={user?.email ?? "pm@reviewpulse.dev"} disabled />
               </div>
               <div className="space-y-1.5 sm:col-span-2">
                 <Label>Description</Label>
@@ -104,16 +146,29 @@ export function SettingsView() {
           <ChartCard title="AI processing" subtitle="How reviews are analyzed">
             <div className="space-y-3 text-sm text-muted-foreground">
               <div className="flex items-center justify-between">
-                <span>Model</span>
-                <code className="rounded bg-secondary/60 px-2 py-0.5 text-xs text-foreground">z-ai-web-dev-sdk (LLM)</code>
+                <span>LLM model</span>
+                <code className="rounded bg-secondary/60 px-2 py-0.5 text-xs text-foreground">z-ai-web-dev-sdk (DeepSeek-equivalent)</code>
               </div>
               <div className="flex items-center justify-between">
-                <span>Batch size</span>
+                <span>Analysis batch size</span>
                 <span className="text-foreground">8 reviews / request</span>
               </div>
               <div className="flex items-center justify-between">
-                <span>Embeddings</span>
-                <span className="text-foreground">Keyword TF-IDF retrieval (SQLite, no pgvector)</span>
+                <span>Embedding model</span>
+                <code className="rounded bg-secondary/60 px-2 py-0.5 text-xs text-foreground">{embedInfo?.model ?? "xenova/all-MiniLM-L6-v2"}</code>
+                {embedInfo?.neural && <span className="rp-bg-positive rounded px-1.5 py-0.5 text-[10px] font-semibold">NEURAL</span>}
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Vector dimensions</span>
+                <span className="text-foreground">384</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Embedding coverage</span>
+                <span className="text-foreground">{embedInfo ? `${embedInfo.withEmbedding}/${embedInfo.processed} (${embedInfo.coverage}%)` : "—"}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Storage</span>
+                <span className="text-foreground">JSON vector + cosine similarity (SQLite). Portable to pgvector VECTOR(384).</span>
               </div>
               <div className="flex items-center justify-between">
                 <span>Fallback on LLM error</span>
@@ -133,33 +188,34 @@ export function SettingsView() {
               </Button>
             }
           >
-            <ul className="divide-y divide-border/60">
-              {keys.map((k) => (
-                <li key={k.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <div className="rp-bg-medium flex h-9 w-9 items-center justify-center rounded-lg">
-                      <Key className="h-4 w-4" />
+            {keysLoading ? (
+              <div className="py-6 text-center text-sm text-muted-foreground">Loading keys…</div>
+            ) : keys.length === 0 ? (
+              <div className="py-8 text-center text-sm text-muted-foreground">No API keys yet. Generate one to access the API programmatically.</div>
+            ) : (
+              <ul className="divide-y divide-border/60">
+                {keys.map((k) => (
+                  <li key={k.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="rp-bg-medium flex h-9 w-9 items-center justify-center rounded-lg">
+                        <Key className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-foreground">{k.name}</p>
+                        <p className="font-mono text-xs text-muted-foreground">{k.prefix}…</p>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-foreground">{k.name}</p>
-                      <p className="font-mono text-xs text-muted-foreground">{k.prefix}…</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                    <span className="hidden sm:inline">Created {k.createdAt}</span>
-                    <span className="hidden md:inline">{k.lastUsed ? `Used ${k.lastUsed}` : "Never used"}</span>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => toast({ title: "Copied to clipboard" })}>
-                        <Copy className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-red-400" onClick={() => setKeys((p) => p.filter((x) => x.id !== k.id))}>
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                      <span className="hidden sm:inline">Created {k.createdAt.slice(0, 10)}</span>
+                      <span className="hidden md:inline">{k.lastUsedAt ? `Used ${new Date(k.lastUsedAt).toLocaleDateString()}` : "Never used"}</span>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-red-400" onClick={() => revokeKey(k.id)}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
+                  </li>
+                ))}
+              </ul>
+            )}
           </ChartCard>
         </TabsContent>
 
@@ -214,6 +270,30 @@ export function SettingsView() {
           <DialogFooter>
             <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={generateKey} className="gap-2"><Key className="h-4 w-4" /> Generate</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Raw key reveal (shown once after creation) */}
+      <Dialog open={!!rawKey} onOpenChange={(o) => { if (!o) setRawKey(null); }}>
+        <DialogContent className="border-border/60 bg-popover">
+          <DialogHeader>
+            <DialogTitle>API key created</DialogTitle>
+            <DialogDescription>
+              Copy this key now. For security, only a SHA-256 hash is stored — the raw value will never be shown again.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <div className="flex items-center gap-2 rounded-md border border-border/60 bg-secondary/40 p-2">
+              <code className="rp-scroll flex-1 overflow-x-auto font-mono text-xs text-foreground">{rawKey}</code>
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={copyRaw}>
+                {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                {copied ? "Copied" : "Copy"}
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setRawKey(null)}>Done</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

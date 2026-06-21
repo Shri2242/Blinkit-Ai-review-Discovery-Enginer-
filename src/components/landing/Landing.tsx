@@ -87,6 +87,10 @@ const STATS = [
 
 export function Landing() {
   const setView = useApp((s) => s.setView);
+  const user = useApp((s) => s.user);
+  // If already signed in, dashboard CTAs go straight in; otherwise to login.
+  const goDashboard = () => setView(user ? "overview" : "login");
+  const goChat = () => setView(user ? "chat" : "login");
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -106,10 +110,10 @@ export function Landing() {
             <a href="#pipeline" className="hover:text-foreground">Pipeline</a>
           </nav>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setView("overview")}>
+            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setView("login")}>
               Sign in
             </Button>
-            <Button size="sm" className="gap-1.5" onClick={() => setView("overview")}>
+            <Button size="sm" className="gap-1.5" onClick={() => setView("register")}>
               Get Started <ArrowRight className="h-3.5 w-3.5" />
             </Button>
           </div>
@@ -134,10 +138,10 @@ export function Landing() {
               the discovery pain points your users actually have, with cited sources you can trust.
             </p>
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Button size="lg" className="gap-2" onClick={() => setView("overview")}>
+              <Button size="lg" className="gap-2" onClick={goDashboard}>
                 Explore the live demo <ArrowRight className="h-4 w-4" />
               </Button>
-              <Button size="lg" variant="outline" className="gap-2 border-border/60" onClick={() => setView("chat")}>
+              <Button size="lg" variant="outline" className="gap-2 border-border/60" onClick={goChat}>
                 <Bot className="h-4 w-4" /> Try AI Chat
               </Button>
             </div>
@@ -241,7 +245,7 @@ export function Landing() {
                 ))}
               </ul>
               <div className="mt-7">
-                <Button className="gap-2" onClick={() => setView("overview")}>
+                <Button className="gap-2" onClick={goDashboard}>
                   Open the dashboard <ArrowRight className="h-4 w-4" />
                 </Button>
               </div>
@@ -298,7 +302,7 @@ jobs:
                 dashboard, ask the AI Chat a question, and watch it cite its sources.
               </p>
               <div className="mt-7 flex justify-center">
-                <Button size="lg" className="gap-2" onClick={() => setView("overview")}>
+                <Button size="lg" className="gap-2" onClick={goDashboard}>
                   Launch dashboard <ArrowRight className="h-4 w-4" />
                 </Button>
               </div>

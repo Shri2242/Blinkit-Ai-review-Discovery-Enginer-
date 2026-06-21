@@ -289,12 +289,69 @@ export function retrieveReviews(
   }));
 }
 
+/**
+ * Vector-based retrieval: embed the question, compute true cosine similarity
+ * against each review's stored embedding, return top-N. Falls back to the
+ * keyword TF-IDF retriever when no embeddings are available for a review.
+ */
+export async function retrieveReviewsByVector(
+  question: string,
+  reviews: { id: string; text: string; author: string; source: string; rating: number }[],
+  embeddingByReviewId: Map<string, number[]>,
+  topN = 8,
+): Promise<RagSource[]> {
+  if (reviews.length === 0) return [];
+  // Embed the question (neural if available, else TF-IDF).
+  const { embedText, cosineSimilarity } = await import("./embeddings");
+  const qVec = await embedText(question);
+
+  const scored = reviews.map((r) => {
+    const vec = embeddingByReviewId.get(r.id);
+    let score = 0;
+    if (vec && vec.length === qVec.length) {
+      score = cosineSimilarity(qVec, vec);
+    } else {
+      // No embedding for this review — fall back to a token-overlap signal so
+      // it can still be surfaced if highly relevant.
+      score = tokenOverlap(question, r.text) * 0.5;
+    }
+    return { r, score };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+  const top = scored.filter((s) => s.score > 0.01).slice(0, topN);
+  const max = top[0]?.score || 1;
+  return top.map((s) => ({
+    reviewId: s.r.id,
+    text: s.r.text,
+    author: s.r.author,
+    source: s.r.source,
+    rating: s.r.rating,
+    score: Math.min(1, s.score / max),
+  }));
+}
+
+/** Cheap token-overlap signal (0..1), used as a fallback when no embedding. */
+function tokenOverlap(a: string, b: string): number {
+  const ta = new Set(tokenize(a));
+  const tb = new Set(tokenize(b));
+  if (ta.size === 0 || tb.size === 0) return 0;
+  let overlap = 0;
+  for (const t of ta) if (tb.has(t)) overlap++;
+  return overlap / Math.sqrt(ta.size * tb.size);
+}
+
 /** Run a RAG chat turn: retrieve -> prompt -> answer. */
 export async function ragChat(
   question: string,
   reviews: { id: string; text: string; author: string; source: string; rating: number }[],
+  embeddingByReviewId?: Map<string, number[]>,
 ): Promise<RagResult> {
-  const sources = retrieveReviews(question, reviews, 8);
+  // Prefer real vector similarity when embeddings are present; else keyword TF-IDF.
+  const sources =
+    embeddingByReviewId && embeddingByReviewId.size > 0
+      ? await retrieveReviewsByVector(question, reviews, embeddingByReviewId, 8)
+      : retrieveReviews(question, reviews, 8);
   let answer: string;
   if (sources.length === 0) {
     answer =
