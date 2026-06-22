@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
               author: r.author,
               sourceReviewId: r.sourceReviewId,
               contentHash: r.contentHash,
-              processed: false,
+              processingStatus: "pending",
             },
           });
           newCount++;

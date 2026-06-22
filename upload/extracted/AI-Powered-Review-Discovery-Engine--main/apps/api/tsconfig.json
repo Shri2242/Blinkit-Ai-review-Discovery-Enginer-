@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "./dist",
+    "skipLibCheck": true,
+    "paths": {
+      "@review-engine/shared": ["../../packages/shared/src"],
+      "@review-engine/shared/*": ["../../packages/shared/src/*"],
+      "@review-engine/database": ["../../packages/database/src"],
+      "@review-engine/database/*": ["../../packages/database/src/*"],
+      "@review-engine/ai": ["../../packages/ai/src"],
+      "@review-engine/ai/*": ["../../packages/ai/src/*"]
+    }
+  },
+  "include": ["src/**/*.ts"]
+}

@@ -53,7 +53,7 @@ export function serializeReview(r: {
   reviewDate: Date;
   source: string;
   author: string;
-  processed: boolean;
+  processingStatus: string;
   sentiment: string | null;
   sentimentScore: number | null;
   theme: string | null;
@@ -65,7 +65,7 @@ export function serializeReview(r: {
   isBug: boolean;
   isFeatureRequest: boolean;
   isActionable: boolean;
-  analyzedAt: Date | null;
+  processedAt: Date | null;
   createdAt: Date;
 }) {
   return {
@@ -77,7 +77,8 @@ export function serializeReview(r: {
     reviewDate: r.reviewDate.toISOString(),
     source: r.source,
     author: r.author,
-    processed: r.processed,
+    processed: r.processingStatus === "completed",
+    processingStatus: r.processingStatus,
     sentiment: r.sentiment,
     sentimentScore: r.sentimentScore,
     theme: r.theme,
@@ -89,7 +90,7 @@ export function serializeReview(r: {
     isBug: r.isBug,
     isFeatureRequest: r.isFeatureRequest,
     isActionable: r.isActionable,
-    analyzedAt: r.analyzedAt?.toISOString() ?? null,
+    analyzedAt: r.processedAt?.toISOString() ?? null,
     createdAt: r.createdAt.toISOString(),
   };
 }

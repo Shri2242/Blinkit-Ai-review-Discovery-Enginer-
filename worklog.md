@@ -378,3 +378,89 @@ Work Log:
 
 Stage Summary:
 - Every user-reported issue fixed: (1) no data without login, (2) create project feature, (3) guest + Google + phone login, (4) DeepSeek integration (real when key set), (5) clear reviews button, (6) production setup panel showing exactly what env vars are needed. All real, no fakes.
+
+---
+Task ID: i2
+Agent: ai-layer-updater
+Task: Update src/lib/ai.ts to match the user's original project taxonomy and prompts: new 11-theme taxonomy, snake_case LLM output fields mapped to camelCase, new heuristic keyword mapping, new RAG_SYSTEM_PROMPT, and THEME_TAXONOMY export.
+
+Work Log:
+- Read /home/z/my-project/worklog.md (Tasks 1–f1-f9 context: real-backend upgrade complete, 105-review corpus, real embeddings, DeepSeek+z-ai fallback) and /home/z/my-project/src/lib/ai.ts (494 lines) to learn the existing structure: AnalysisResult interface (camelCase), ANALYSIS_SYSTEM_PROMPT (Spotify-specific themes), heuristicAnalysis, analyzeReviews, RAG_SYSTEM_PROMPT, callLLM, ragChat, retrieveReviews, retrieveReviewsByVector, embedText (via dynamic import).
+- Confirmed via ripgrep that 13 files (api/reviews, api/segments, api/insights, api/stats, api/analyze, dashboard/shared, dashboard/reviews, lib/types, lib/server, lib/api, lib/validation, lib/seed-data, lib/ai) all reference the camelCase field names (sentimentScore, isBug, isFeatureRequest, isActionable, subTheme, priorityReason, keyPhrases) — so the AnalysisResult interface MUST stay camelCase for compatibility. Left the interface untouched.
+- Replaced ANALYSIS_SYSTEM_PROMPT: dropped the Spotify-specific framing; embedded the full 11-theme taxonomy (payment, performance, usability, onboarding, features, support, pricing, security, reliability, content, other) with each theme's scope description; switched the required JSON keys to snake_case (review_index, sentiment_confidence, sub_theme, priority_reason, key_phrases, actionable, is_bug, is_feature_request) per the user's spec.
+- Rewrote heuristicAnalysis theme-detection to the new taxonomy. Keyword order chosen so more specific phrases win: payment → performance → usability → onboarding → features → support → pricing → security → reliability → content → default "other". Critically, the security check (`privacy|security|account`) comes BEFORE the reliability check's bare `data` would have, but reliability's `data loss` is in the reliability regex; since reliability is checked AFTER security, an isolated "data" mention classifies as security while "data loss" still classifies as reliability because the security regex doesn't include "data loss" verbatim — only `privacy|security|account`. Updated priorityReason text to drop the old "music_discovery" references and updated isActionable to cover performance/reliability/usability/onboarding/payment.
+- Rewrote analyzeReviews snake_case→camelCase mapping: (1) userContent now instructs the LLM to set review_index to match the #N prefix; (2) extracts the JSON array as Array<Record<string, unknown> & Partial<AnalysisResult>>; (3) builds a byIndex Map keyed by review_index so out-of-order LLM responses still map correctly (falls back to array position when review_index is missing); (4) local num/bool/str coercers normalize each field with per-item heuristic fallback; (5) reads both snake_case (sentiment_confidence, sub_theme, priority_reason, key_phrases, is_bug, is_feature_request, actionable) AND legacy camelCase keys (?? fallback) so the function is robust to either LLM output shape. Existing try/catch + heuristic fallback preserved.
+- Replaced RAG_SYSTEM_PROMPT verbatim with the user's version (product analyst assistant, 6 rules, "Review #N" citations, quantify-when-possible, no-making-up-data, headings + bullets).
+- Aligned ragChat user-message template with the new citation style: context excerpts now prefixed `#N (rating=..., source=..., author=...)` instead of `[N] (...)`, instruction changed from "Cite with [n]" to `Cite reviews as "Review #N" using the numbers above.`; the no-sources fallback message now lists the new 11 themes; the LLM-failure fallback snippets now read `Review #N: "..."` instead of `[N] "..."`.
+- Added THEME_TAXONOMY export (Record<string, string>, 11 keys → Title-Case labels) immediately after ReviewForAnalysis so it sits with the other public types. Also added THEME_KEYS (derived via Object.keys so the prompt and heuristic can never drift from the export) and a themeLabel(theme) helper for the frontend to render a human-readable label with a safe "Other" fallback.
+- Did NOT touch callLLM, activeLLMProvider, extractJsonArray, retrieveReviews, retrieveReviewsByVector, tokenOverlap, embedText (dynamic import), or any of the ZAI/DeepSeek plumbing. Did NOT run build/lint per task instructions.
+- Verified the final file (495 lines) reads top-to-bottom as coherent TypeScript: imports unchanged, types unchanged, THEME_TAXONOMY + helpers added, both prompts replaced, heuristic + analyzeReviews + ragChat updated, retrieval stack untouched.
+
+Stage Summary:
+- Files modified: /home/z/my-project/src/lib/ai.ts only.
+- New theme taxonomy (11 themes) is now the single source of truth across the ANALYSIS_SYSTEM_PROMPT, heuristicAnalysis, and the exported THEME_TAXONOMY (with THEME_KEYS + themeLabel helpers).
+- LLM is asked for snake_case fields; analyzeReviews maps them back to the existing camelCase AnalysisResult interface so all 13 downstream consumers (routes + frontend + DB + seed) keep working unchanged.
+- RAG_SYSTEM_PROMPT replaced with the user's exact wording; ragChat context + citation format aligned to "Review #N".
+- No build/lint commands run, per task instructions. Ready for a downstream task to wire THEME_TAXONOMY/themeLabel into the dashboard UI if desired.
+
+---
+Task ID: i9
+Agent: seed-taxonomy-remapper
+Task: Remap all 105 seed reviews' `theme` and `subTheme` fields in /home/z/my-project/src/lib/seed-data.ts from the legacy 10-category taxonomy to the new 11-category taxonomy (payment, performance, usability, onboarding, features, support, pricing, security, reliability, content, other) sourced from the user's original project.
+
+Work Log:
+- Read /home/z/my-project/worklog.md for prior context (Tasks 1, 2, r4, r2-r11, f8, f1-f9). Confirmed seed-data.ts holds 105 reviews with pre-computed AI fields and that `SeedReviewDef.theme` is typed as a plain `string` (no union), so no interface edit was required.
+- Grepped the file: confirmed exactly 105 `theme: "..."` occurrences and 105 `subTheme: "..."` occurrences, and that legacy theme strings appear ONLY as theme-field values plus the header distribution comment (lines 22-24). No other source files needed changes per task scope.
+- Read every `playback_bug` review body (12 reviews at lines 152, 247, 382, 572, 707, 956, 1136, 1345, 1461, 1748, 1824, 2054) to make the per-review performance-vs-reliability call:
+  - performance (7) — crashes / skips / freezes: launch_crash, playback_skipping (×2), ui_freeze, android_auto_crash (×2), ios_crash.
+  - reliability (5) — data loss / unexpected behavior / regressions: offline_playback_failure (×2 — downloaded content won't play), download_disappearing (data loss), crossfade_regression (feature broke after update), connect_disconnect (Sonos drops mid-song).
+- Applied the mapping via one MultiEdit on /home/z/my-project/src/lib/seed-data.ts with 18 sequential edits:
+  1. Rewrote the header distribution block (lines 20-26) to reflect new counts and added a 6-line "Legacy → new theme mapping" legend documenting exactly what was remapped (including the playback_bug split rationale).
+  2-9. Eight `replace_all` edits for the direct mappings: music_discovery→content, recommendation_quality→content, playlist_fatigue→content, audio_quality→content, ui_ux→usability, search→usability, offline_mode→reliability, social_features→features. (pricing stayed pricing.)
+  10-18. Nine targeted edits for the 12 playback_bug reviews, scoped by `theme+subTheme` pairs so duplicates (playback_skipping ×2, android_auto_crash ×2, offline_playback_failure ×2) reused `replace_all` while singletons used unique two-line old_str matches. SubTheme strings were left untouched — all were already short snake_case descriptions still relevant to the new theme (e.g. "download_disappearing" remains apt for reliability, "launch_crash" remains apt for performance).
+- Verification (no build/lint run, per task instructions):
+  - Grep for legacy theme strings on `theme:` fields → 0 matches. All 105 remapped.
+  - Grep for new-theme strings on `theme:` fields → 105 matches.
+  - Per-theme counts: content 64, usability 11, reliability 10, performance 7, pricing 7, features 6. Sum = 105. ✓
+  - Math check: content 64 = music_discovery 36 + recommendation_quality 15 + playlist_fatigue 9 + audio_quality 4. usability 11 = ui_ux 6 + search 5. reliability 10 = offline_mode 5 + 5 playback_bug. performance 7 = 7 playback_bug. All consistent with the legacy distribution recorded in Task r4.
+  - Spot-reads of edited regions (first review, a performance remap, a reliability remap, the last review at line 2100) confirm clean TypeScript object literals with no broken syntax.
+
+Stage Summary:
+- All 105 seed reviews in /home/z/my-project/src/lib/seed-data.ts now use the new 11-category theme taxonomy; every `theme` is one of {payment, performance, usability, onboarding, features, support, pricing, security, reliability, content, other} and every `subTheme` remains a short snake_case description relevant to its new theme.
+- New distribution: content 64 · usability 11 · reliability 10 · performance 7 · pricing 7 · features 6 (onboarding/payment/support/security/other = 0).
+- File header comment block updated to document both the new distribution and the exact legacy→new mapping (including the playback_bug performance/reliability split) so future maintainers can audit the remap.
+- No other files modified; no build/lint commands run per task instructions.
+- Next action (out of scope for i9): if the dashboard's themeLabel / theme-color mapping in src/lib/api.ts or src/lib/types.ts references legacy theme keys, those should be updated in a follow-up task so the UI renders labels/colors for the 11 new categories instead of the legacy 10.
+
+---
+Task ID: i1-i11 (full feature integration from user's project)
+Agent: main (orchestrator)
+Task: Integrate ALL features from the user's original project (monorepo + PostgreSQL + Drizzle) into the sandbox Next.js app, keeping the existing frontend design.
+
+Work Log:
+- Expanded Prisma schema to match ALL user tables: User (avatarUrl, isActive, lastLoginAt), Project (appStoreUrl, googlePlayUrl, settings), Review (processingStatus enum, processedAt, processingError, retryCount, language, metadata, uploadBatchId), UploadBatch, ChatMessage, Insight, SavedSearch, AnalyticsDaily, ReportSchedule, WebhookConfig, WebhookDelivery, ActivityLog (entityType, entityId), ApiKey (scopes, expiresAt, revokedAt).
+- Migrated `processed: boolean` → `processingStatus: "pending"|"processing"|"completed"|"failed"` across all routes, server lib, and types.
+- Updated AI layer to the user's 11-theme taxonomy (payment, performance, usability, onboarding, features, support, pricing, security, reliability, content, other) + their exact prompts + Zod-validated parser.
+- Remapped all 105 seed reviews to the new taxonomy.
+- Added chat history persistence: /api/chat stores user+assistant messages in DB with metadata (sources, model, usage, vector search flag). /api/chat/history GET/DELETE.
+- Added report schedules: /api/reports/schedules CRUD with daily/weekly/monthly frequency, email recipients, include flags, nextSendAt calculation.
+- Added webhooks: /api/reports/webhooks CRUD with HMAC secret (returned once), event subscription, delivery log. /api/reports/webhooks/[id] for deliveries.
+- Added saved searches: /api/searches CRUD per user+project.
+- Added forgot/reset password: /api/auth/forgot (dev mode returns token, prod would email) + /api/auth/reset (validates token, updates password, issues session).
+- Added refresh tokens: /api/auth/refresh with 7-day rotation (in-memory store, prod would use Redis).
+- Added Firebase auth route: /api/auth/firebase (config-ready, returns clear setup instructions when not configured).
+- Installed google-play-scraper + app-store-scraper for REAL Google Play and App Store review collection.
+- Updated THEME_LABELS in the API client to the new 11-category taxonomy.
+- Added all new API client methods: chatHistory, clearChatHistory, listSchedules, createSchedule, deleteSchedule, listWebhooks, createWebhook, deleteWebhook, listSavedSearches, saveSearch, deleteSearch.
+
+Verified via curl:
+- Login → 200, stats show new taxonomy (content:64, usability:11, reliability:10, pricing:7, performance:7).
+- Chat → answer + 8 sources, chat history persists 2 messages (user+assistant).
+- Report schedule → created + listed (weekly, 2 recipients).
+- Webhook → created with secret (returned once), list omits secret.
+- Saved search → created + listed with filters.
+- Forgot password → dev token returned.
+- bun run lint → 0 errors, 0 warnings.
+
+Stage Summary:
+- ALL features from the user's original project are now integrated: the complete 11-theme taxonomy, chat history persistence, report schedules (daily/weekly/monthly), webhooks (HMAC-signed), saved searches, forgot/reset password, refresh tokens, Firebase auth, real Google Play + App Store collectors, processing status enum, upload batches, activity log with entity types, insights table, analytics daily. The frontend design is preserved.

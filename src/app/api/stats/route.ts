@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     last30,
   ] = await Promise.all([
     db.review.count({ where: { projectId: project.id } }),
-    db.review.count({ where: { projectId: project.id, processed: true } }),
+    db.review.count({ where: { projectId: project.id, processingStatus: "completed" } }),
     db.review.count({ where: { projectId: project.id, isBug: true } }),
     db.review.count({ where: { projectId: project.id, isFeatureRequest: true } }),
     db.review.groupBy({

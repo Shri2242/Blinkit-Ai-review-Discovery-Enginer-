@@ -1,0 +1,93 @@
+name: Daily Review Collection & Analysis
+
+on:
+  schedule:
+    # 10:00 AM IST = 4:30 AM UTC
+    - cron: '30 4 * * *'
+
+  workflow_dispatch:
+    inputs:
+      step:
+        description: 'Which step to run'
+        type: choice
+        options:
+          - all
+          - collect-only
+          - process-only
+        default: all
+
+jobs:
+  daily-pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - uses: pnpm/action-setup@v4
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: |
+          pnpm --filter @review-engine/database build
+          pnpm --filter @review-engine/shared build
+          pnpm --filter @review-engine/ai build
+
+      - name: Run full pipeline
+        if: ${{ github.event_name == 'schedule' || github.event.inputs.step == 'all' || github.event.inputs.step == '' }}
+        run: npx tsx scripts/daily-pipeline.ts
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          S3_ENDPOINT: ${{ secrets.S3_ENDPOINT || 'http://localhost:9000' }}
+          S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY || 'minioadmin' }}
+          S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY || 'minioadmin' }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET || 'review-engine' }}
+          CHROMADB_URL: ${{ secrets.CHROMADB_URL || 'http://localhost:8000' }}
+          NODE_ENV: production
+
+      - name: Collect only
+        if: ${{ github.event.inputs.step == 'collect-only' }}
+        run: npx tsx scripts/collect-reviews.ts
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET || 'ci-default-jwt-secret-at-least-32-characters' }}
+          S3_ENDPOINT: ${{ secrets.S3_ENDPOINT || 'http://localhost:9000' }}
+          S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY || 'minioadmin' }}
+          S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY || 'minioadmin' }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET || 'review-engine' }}
+          CHROMADB_URL: ${{ secrets.CHROMADB_URL || 'http://localhost:8000' }}
+          NODE_ENV: production
+
+      - name: Process only
+        if: ${{ github.event.inputs.step == 'process-only' }}
+        run: |
+          npx tsx scripts/process-reviews.ts
+          npx tsx scripts/generate-embeddings.ts
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET || 'ci-default-jwt-secret-at-least-32-characters' }}
+          S3_ENDPOINT: ${{ secrets.S3_ENDPOINT || 'http://localhost:9000' }}
+          S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY || 'minioadmin' }}
+          S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY || 'minioadmin' }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET || 'review-engine' }}
+          CHROMADB_URL: ${{ secrets.CHROMADB_URL || 'http://localhost:8000' }}
+          NODE_ENV: production
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Daily Pipeline Results" >> $GITHUB_STEP_SUMMARY
+          echo "- Time: $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "- Trigger: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Status: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,28 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "ES2022"],
+    "module": "ESNext",
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./src/*"],
+      "@review-engine/shared": ["../../packages/shared/src"],
+      "@review-engine/shared/*": ["../../packages/shared/src/*"]
+    },
+    "outDir": null,
+    "rootDir": null,
+    "declaration": false,
+    "declarationMap": false,
+    "noEmit": true,
+    "allowJs": true
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}

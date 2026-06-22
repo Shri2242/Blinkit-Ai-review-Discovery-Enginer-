@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     const needEmbedding = await db.review.findMany({
       where: {
         projectId: project.id,
-        processed: true,
+        processingStatus: "completed",
         embedding: { is: null },
       },
       select: { id: true, text: true, title: true },
@@ -90,7 +90,7 @@ export async function GET(req: Request) {
     }
     const [withEmbedding, processed] = await Promise.all([
       db.reviewEmbedding.count({ where: { projectId: project.id } }),
-      db.review.count({ where: { projectId: project.id, processed: true } }),
+      db.review.count({ where: { projectId: project.id, processingStatus: "completed" } }),
     ]);
     return NextResponse.json({
       withEmbedding,

@@ -1,0 +1,65 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+.next/
+out/
+
+# Environment
+.env
+.env.development
+.env.test
+.env.staging
+.env.production.example
+.env.local
+.env.*.local
+
+# Secrets & certificates
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+service-account*.json
+firebase-adminsdk*.json
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Turbo
+.turbo/
+
+# IDE
+.vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage/
+
+# Docker
+docker-compose.override.yml
+
+# Drizzle
+drizzle/meta/
+
+# Misc
+*.tsbuildinfo
+
+# Production overrides & storage volumes
+.env.production
+certs/
+postgres_data/
+redis_data/

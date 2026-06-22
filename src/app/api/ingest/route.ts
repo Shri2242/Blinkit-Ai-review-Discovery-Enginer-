@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
           author: n.author,
           sourceReviewId: n.sourceReviewId ?? `${n.source}:${contentHash.slice(0, 12)}`,
           contentHash,
-          processed: false,
+          processingStatus: "pending",
         },
       });
       inserted++;

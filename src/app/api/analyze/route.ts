@@ -19,7 +19,7 @@ export async function POST(req: Request) {
     const { limit } = parsed.data;
 
     const unprocessed = await db.review.findMany({
-      where: { projectId: ctx.project!.id, processed: false },
+      where: { projectId: ctx.project!.id, processingStatus: "pending" },
       take: limit,
       orderBy: { createdAt: "asc" },
       select: { id: true, text: true, rating: true, source: true },
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
         await db.review.update({
           where: { id: r.id },
           data: {
-            processed: true,
+            processingStatus: "completed",
             sentiment: a.sentiment,
             sentimentScore: a.sentimentScore,
             theme: a.theme,
@@ -55,7 +55,7 @@ export async function POST(req: Request) {
             isBug: a.isBug,
             isFeatureRequest: a.isFeatureRequest,
             isActionable: a.isActionable,
-            analyzedAt: new Date(),
+            processedAt: new Date(),
           },
         });
         processedCount++;

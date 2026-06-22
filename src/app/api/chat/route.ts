@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { ensureProject } from "@/lib/server";
+import { getAuthContext, errorResponse } from "@/lib/rbac";
 import { ragChat } from "@/lib/ai";
 import { chatSchema } from "@/lib/validation";
-import { errorResponse } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// POST /api/chat — RAG chat over reviews using real vector similarity.
+// POST /api/chat — RAG chat with real vector search + chat history persistence.
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -17,24 +17,27 @@ export async function POST(req: NextRequest) {
     const question = parsed.data.question.trim();
 
     const projectId = req.nextUrl.searchParams.get("projectId") || undefined;
-    const project = await ensureProject(projectId);
+    const ctx = await getAuthContext(projectId);
+    if (!ctx.user) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
+    if (!ctx.project) {
+      return NextResponse.json({ error: "No project access" }, { status: 403 });
+    }
+
     const reviews = await db.review.findMany({
-      where: { projectId: project.id, processed: true },
-      select: { id: true, text: true, author: true, source: true, rating: true, title: true },
+      where: { projectId: ctx.project.id, processingStatus: "completed" },
+      select: { id: true, text: true, author: true, source: true, rating: true, title: true, sentiment: true, theme: true, reviewDate: true },
     });
 
-    // Load any stored embeddings for real cosine-similarity retrieval.
+    // Load embeddings for vector search.
     const embeddingRows = await db.reviewEmbedding.findMany({
-      where: { projectId: project.id },
+      where: { projectId: ctx.project.id },
       select: { reviewId: true, embedding: true },
     });
     const embeddingByReviewId = new Map<string, number[]>();
     for (const row of embeddingRows) {
-      try {
-        embeddingByReviewId.set(row.reviewId, JSON.parse(row.embedding) as number[]);
-      } catch {
-        // skip malformed
-      }
+      try { embeddingByReviewId.set(row.reviewId, JSON.parse(row.embedding) as number[]); } catch { /* skip */ }
     }
 
     const { answer, sources } = await ragChat(
@@ -44,10 +47,27 @@ export async function POST(req: NextRequest) {
         text: r.title ? `${r.title}. ${r.text}` : r.text,
         author: r.author,
         source: r.source,
-        rating: r.rating,
+        rating: r.rating ?? 0,
       })),
       embeddingByReviewId,
     );
+
+    // Persist chat history.
+    await db.chatMessage.create({ data: { projectId: ctx.project.id, userId: ctx.user.id, role: "user", content: question } });
+    await db.chatMessage.create({
+      data: {
+        projectId: ctx.project.id,
+        userId: ctx.user.id,
+        role: "assistant",
+        content: answer,
+        metadata: JSON.stringify({
+          source_review_ids: sources.map((s) => s.reviewId),
+          sources: sources.slice(0, 5).map((s) => ({ id: s.reviewId, text: s.text.slice(0, 200), similarity: s.score, sentiment: null, source: s.source })),
+          vectorSearch: embeddingByReviewId.size > 0,
+          embeddedCount: embeddingByReviewId.size,
+        }),
+      },
+    });
 
     return NextResponse.json({
       answer,

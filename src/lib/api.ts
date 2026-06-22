@@ -131,6 +131,35 @@ export const api = {
   clearReviews: (projectId?: string | null) =>
     jsonFetch<{ ok: boolean; deleted: number }>(withProject("/api/reviews/clear", projectId), { method: "DELETE" }),
 
+  /* ---- Chat history ---- */
+  chatHistory: (projectId?: string | null) =>
+    jsonFetch<{ messages: { id: string; role: string; content: string; metadata: unknown; createdAt: string }[] }>(withProject("/api/chat/history", projectId)),
+  clearChatHistory: (projectId?: string | null) =>
+    jsonFetch<{ ok: boolean }>(withProject("/api/chat/history", projectId), { method: "DELETE" }),
+
+  /* ---- Report schedules ---- */
+  listSchedules: (projectId?: string | null) =>
+    jsonFetch<{ schedules: { id: string; name: string; frequency: string; recipients: string[]; enabled: boolean; includeSentiment: boolean; includeThemes: boolean; includeTopIssues: boolean; includeSummary: boolean; lastSentAt: string | null; nextSendAt: string | null; createdAt: string }[] }>(withProject("/api/reports/schedules", projectId)),
+  createSchedule: (data: { name: string; frequency: "daily" | "weekly" | "monthly"; recipients: string[]; includeSentiment?: boolean; includeThemes?: boolean; includeTopIssues?: boolean; includeSummary?: boolean; enabled?: boolean }, projectId?: string | null) =>
+    jsonFetch<{ ok: boolean; schedule: { id: string } }>(withProject("/api/reports/schedules", projectId), { method: "POST", body: JSON.stringify(data) }),
+  deleteSchedule: (id: string, projectId?: string | null) =>
+    jsonFetch<{ ok: boolean }>(withProject(`/api/reports/schedules/${id}`, projectId), { method: "DELETE" }),
+
+  /* ---- Webhooks ---- */
+  listWebhooks: (projectId?: string | null) =>
+    jsonFetch<{ webhooks: { id: string; name: string; url: string; events: string[]; enabled: boolean; failureCount: number; lastTriggeredAt: string | null; lastStatusCode: number | null; createdAt: string; deliveryCount: number }[] }>(withProject("/api/reports/webhooks", projectId)),
+  createWebhook: (data: { name: string; url: string; events: string[]; enabled?: boolean }, projectId?: string | null) =>
+    jsonFetch<{ ok: boolean; webhook: { id: string; name: string; url: string; secret: string } }>(withProject("/api/reports/webhooks", projectId), { method: "POST", body: JSON.stringify(data) }),
+  deleteWebhook: (id: string, projectId?: string | null) =>
+    jsonFetch<{ ok: boolean }>(withProject(`/api/reports/webhooks/${id}`, projectId), { method: "DELETE" }),
+
+  /* ---- Saved searches ---- */
+  listSavedSearches: (projectId?: string | null) =>
+    jsonFetch<{ searches: { id: string; name: string; filters: Record<string, unknown>; createdAt: string }[] }>(withProject("/api/searches", projectId)),
+  saveSearch: (data: { name: string; filters: Record<string, unknown> }, projectId?: string | null) =>
+    jsonFetch<{ ok: boolean; search: { id: string } }>(withProject("/api/searches", projectId), { method: "POST", body: JSON.stringify(data) }),
+  deleteSearch: (id: string) => jsonFetch<{ ok: boolean }>(`/api/searches/${id}`, { method: "DELETE" }),
+
   /* ---- Config / env status ---- */
   envStatus: () => jsonFetch<{
     database: { configured: boolean; provider: string; isProduction: boolean };
@@ -153,18 +182,19 @@ export const SOURCE_LABELS: Record<string, string> = {
 };
 
 export const THEME_LABELS: Record<string, string> = {
-  music_discovery: "Music Discovery",
-  recommendation_quality: "Recommendation Quality",
-  playlist_fatigue: "Playlist Fatigue",
-  playback_bug: "Playback Bug",
-  ui_ux: "UI / UX",
-  search: "Search",
-  offline_mode: "Offline Mode",
+  payment: "Payment",
+  performance: "Performance",
+  usability: "Usability",
+  onboarding: "Onboarding",
+  features: "Features",
+  support: "Support",
   pricing: "Pricing",
-  social_features: "Social Features",
-  audio_quality: "Audio Quality",
-  general: "General",
-  unknown: "Unknown",
+  security: "Security",
+  reliability: "Reliability",
+  content: "Content",
+  other: "Other",
+  general: "Other",
+  unknown: "Other",
 };
 
 export function themeLabel(t: string | null | undefined): string {

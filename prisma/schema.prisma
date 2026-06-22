@@ -1,5 +1,5 @@
 // ReviewPulse — AI-Powered Review Discovery Engine
-// Prisma schema (SQLite). Portable to PostgreSQL + pgvector for production.
+// Prisma schema (SQLite in sandbox; PostgreSQL+pgvector in production).
 //
 // NOTE on vector storage: SQLite has no native vector type, so ReviewEmbedding
 // stores the 384-dim vector as a JSON string and cosine similarity is computed
@@ -16,36 +16,57 @@ datasource db {
 }
 
 /// A registered user. Passwords are hashed with scrypt (crypto.scrypt, RFC 7914).
-/// Auth provider can be 'email' (password) or 'google'/'phone' (firebase_uid, no password).
+/// Auth provider can be 'email' (password), 'google'/'phone' (firebase_uid),
+/// or 'guest' (no password, viewer role).
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
   name         String
-  passwordHash String?  // null for OAuth users
-  authProvider String   @default("email") // email | google | phone
+  passwordHash String?  // null for OAuth/guest users
+  authProvider String   @default("email") // email | google | phone | guest
   firebaseUid  String?
+  avatarUrl    String?
+  isActive     Boolean  @default(true)
+  lastLoginAt  DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  memberships  ProjectMember[]
-  apiKeys      ApiKey[]
-  ownedProjects Project[] @relation("OwnedProject")
-  activity     ActivityLog[]
+  memberships   ProjectMember[]
+  apiKeys       ApiKey[]
+  ownedProjects Project[]      @relation("OwnedProject")
+  activity      ActivityLog[]
+  chatMessages  ChatMessage[]
+  savedSearches SavedSearch[]
+  uploadBatches UploadBatch[]
+  reportSchedules ReportSchedule[]
+  webhooks       WebhookConfig[]
 }
 
 /// A product/workspace being analyzed (e.g. "Spotify — Music Discovery").
 model Project {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  ownerId     String
-  owner       User     @relation("OwnedProject", fields: [ownerId], references: [id], onDelete: Cascade)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(cuid())
+  name          String
+  description   String?
+  ownerId       String
+  owner         User     @relation("OwnedProject", fields: [ownerId], references: [id], onDelete: Cascade)
+  appStoreUrl   String?
+  googlePlayUrl String?
+  settings      String   @default("{}") // JSON
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  reviews     Review[]
-  sources     CollectorSource[]
-  members     ProjectMember[]
+  reviews        Review[]
+  sources        CollectorSource[]
+  members        ProjectMember[]
+  embeddings     ReviewEmbedding[]
+  chatMessages   ChatMessage[]
+  insights       Insight[]
+  savedSearches  SavedSearch[]
+  analyticsDaily AnalyticsDaily[]
+  uploadBatches  UploadBatch[]
+  reportSchedules ReportSchedule[]
+  webhooks        WebhookConfig[]
+  apiKeys         ApiKey[]
 }
 
 /// Membership + role-based access control. Roles: admin | analyst | viewer.
@@ -65,57 +86,91 @@ model ProjectMember {
 
 /// A single user review collected from an app store, Reddit, Twitter, or CSV upload.
 model Review {
-  id             String   @id @default(cuid())
-  projectId      String
-  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id              String   @id @default(cuid())
+  projectId       String
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploadBatchId   String?
 
-  text           String
-  title          String?
-  rating         Int      // 1-5
-  reviewDate     DateTime
-  source         String   // google_play | app_store | reddit | twitter | csv_upload
-  author         String
-  sourceReviewId String?
-  contentHash    String?
+  text            String
+  title           String?
+  rating          Int?     // 1-5
+  reviewDate      DateTime
+  source          String   // google_play | app_store | reddit | twitter | csv_upload | manual
+  author          String
+  sourceReviewId  String?
+  contentHash     String
+  language        String   @default("en")
+  metadata        String   @default("{}") // JSON
 
-  // AI analysis (populated by the AI processor)
-  processed        Boolean  @default(false)
-  sentiment        String?  // positive | negative | neutral | mixed
-  sentimentScore   Float?   // 0-1 confidence
-  theme            String?
-  subTheme         String?
-  priority         String?  // critical | high | medium | low
-  priorityReason   String?
-  summary          String?
-  keyPhrases       String?  // JSON-encoded array of strings
-  isBug            Boolean  @default(false)
-  isFeatureRequest Boolean  @default(false)
-  isActionable     Boolean  @default(false)
-  analyzedAt       DateTime?
+  // Processing state (matches the user's enum: pending | processing | completed | failed)
+  processingStatus  String  @default("pending") // pending | processing | completed | failed
+  processedAt       DateTime?
+  processingError   String?
+  retryCount        Int     @default(0)
 
-  embedding        ReviewEmbedding?
+  // AI analysis
+  sentiment         String?  // positive | negative | neutral | mixed
+  sentimentScore    Float?   // 0-1 confidence
+  theme             String?  // payment | performance | usability | onboarding | features | support | pricing | security | reliability | content | other
+  subTheme          String?
+  priority          String?  // critical | high | medium | low
+  priorityReason    String?
+  summary           String?
+  keyPhrases        String?  // JSON-encoded array of strings
+  isBug             Boolean  @default(false)
+  isFeatureRequest  Boolean  @default(false)
+  isActionable      Boolean  @default(false)
+
+  embedding         ReviewEmbedding?
+  uploadBatch       UploadBatch? @relation("BatchReviews", fields: [uploadBatchId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([projectId])
-  @@index([processed])
+  @@index([processingStatus])
   @@index([sentiment])
   @@index([theme])
   @@index([source])
   @@index([rating])
   @@index([sourceReviewId])
   @@index([contentHash])
+  @@index([uploadBatchId])
+}
+
+/// Tracks a batch upload (CSV/JSON) with row counts and status.
+model UploadBatch {
+  id           String   @id @default(cuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploadedBy   String
+  uploader     User     @relation(fields: [uploadedBy], references: [id], onDelete: Cascade)
+  filename     String
+  source       String   @default("csv_upload")
+  fileUrl      String?
+  totalRows    Int      @default(0)
+  processedRows Int     @default(0)
+  failedRows   Int      @default(0)
+  status       String   @default("pending") // pending | processing | completed | failed
+  errorLog     String   @default("[]") // JSON array
+  startedAt    DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime @default(now())
+
+  reviews Review[] @relation("BatchReviews")
+
+  @@index([projectId])
+  @@index([status])
 }
 
 /// A 384-dimensional embedding vector for a review.
-/// Stored as a JSON string of numbers (SQLite). In Postgres this would be VECTOR(384).
-/// Used for real cosine-similarity semantic search in the RAG chat.
 model ReviewEmbedding {
   id              String   @id @default(cuid())
   reviewId        String   @unique
   review          Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
   projectId       String
-  embeddingModel  String   @default("tfidf-v1") // or "xenova/all-MiniLM-L6-v2"
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  embeddingModel  String   @default("xenova/all-MiniLM-L6-v2")
   dimensions      Int      @default(384)
   embedding       String   // JSON-encoded number[] vector
   createdAt       DateTime @default(now())
@@ -168,32 +223,175 @@ model CollectorLog {
   @@index([sourceId])
 }
 
-/// API keys for programmatic access. The raw key is shown only once at creation;
-/// the stored `keyHash` is the SHA-256 of the raw key. `prefix` is stored in
-/// plaintext so the UI can display "rpk_live_4f9a…" without the secret.
+/// API keys for programmatic access. SHA-256 hashed at rest.
 model ApiKey {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name      String
-  keyHash   String   @unique // SHA-256 hex of the raw key
-  prefix    String   // first 16 chars, stored plaintext for display
+  keyHash   String   @unique
+  keyPrefix String   // first 16 chars for display
+  scopes    String   @default("[]") // JSON array of scope strings
+  expiresAt DateTime?
+  revokedAt DateTime?
   lastUsedAt DateTime?
   createdAt DateTime @default(now())
 
   @@index([userId])
+  @@index([projectId])
 }
 
-/// Audit trail of significant actions (auth, collection, ingestion, analysis).
-model ActivityLog {
+/// Chat messages for RAG conversations. Persisted per user+project.
+model ChatMessage {
   id        String   @id @default(cuid())
-  userId    String?
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  action    String   // e.g. "auth.login", "ingest.upload", "collect.run"
-  projectId String?
-  metadata  String?  // JSON string
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String   // user | assistant
+  content   String
+  metadata  String?  // JSON: { source_review_ids, sources, model, usage, cost, latency_ms }
   createdAt DateTime @default(now())
 
-  @@index([userId])
+  @@index([projectId, userId])
+  @@index([createdAt])
+}
+
+/// Stored AI-generated insights with read/dismissed state.
+model Insight {
+  id             String   @id @default(cuid())
+  projectId      String
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  insightType    String   // e.g. "top_issue", "emerging_trend", "feature_request"
+  theme          String?
+  title          String
+  summary        String
+  details        String   @default("{}") // JSON
+  severity       String?  // critical | high | medium | low
+  reviewCount    Int      @default(0)
+  dateRangeStart DateTime?
+  dateRangeEnd   DateTime?
+  isRead         Boolean  @default(false)
+  isDismissed    Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
   @@index([projectId])
+  @@index([projectId, insightType])
+}
+
+/// Saved search filters per user+project.
+model SavedSearch {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  filters   String   // JSON-encoded filter object
+  createdAt DateTime @default(now())
+
+  @@index([projectId])
+  @@index([userId])
+}
+
+/// Pre-computed daily analytics for fast dashboard loads.
+model AnalyticsDaily {
+  id               String   @id @default(cuid())
+  projectId        String
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  date             DateTime
+  totalReviews     Int      @default(0)
+  avgRating        Float?
+  sentimentPositive Int     @default(0)
+  sentimentNegative Int     @default(0)
+  sentimentNeutral  Int     @default(0)
+  sentimentMixed    Int     @default(0)
+  topThemes        String   @default("[]") // JSON
+  topIssues        String   @default("[]") // JSON
+  createdAt        DateTime @default(now())
+
+  @@unique([projectId, date])
+  @@index([projectId])
+}
+
+/// Report schedules (daily/weekly/monthly) with email recipients.
+model ReportSchedule {
+  id                String   @id @default(cuid())
+  projectId         String
+  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy         String
+  creator           User     @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  name              String
+  frequency         String   // daily | weekly | monthly
+  recipients        String   @default("[]") // JSON array of emails
+  includeSentiment  Boolean  @default(true)
+  includeThemes     Boolean  @default(true)
+  includeTopIssues  Boolean  @default(true)
+  includeSummary    Boolean  @default(true)
+  enabled           Boolean  @default(true)
+  lastSentAt        DateTime?
+  nextSendAt        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([nextSendAt])
+}
+
+/// Webhook configurations for event delivery (HMAC-signed).
+model WebhookConfig {
+  id              String   @id @default(cuid())
+  projectId       String
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy       String
+  creator         User     @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  name            String
+  url             String
+  secret          String   // for HMAC signature verification
+  events          String   @default("[]") // JSON array of event types
+  enabled         Boolean  @default(true)
+  failureCount    Int      @default(0)
+  lastTriggeredAt DateTime?
+  lastStatusCode  Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  deliveries WebhookDelivery[]
+
+  @@index([projectId])
+}
+
+/// Webhook delivery log (per-attempt record).
+model WebhookDelivery {
+  id           String   @id @default(cuid())
+  webhookId    String
+  webhook      WebhookConfig @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  event        String
+  payload      String   // JSON
+  statusCode   Int?
+  responseBody String?
+  success      Boolean  @default(false)
+  errorMessage String?
+  deliveredAt  DateTime @default(now())
+
+  @@index([webhookId])
+  @@index([deliveredAt])
+}
+
+/// Audit trail of significant actions.
+model ActivityLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  projectId  String?
+  action     String   // e.g. "auth.login", "ingest.upload", "collect.run"
+  entityType String?
+  entityId   String?
+  details    String?  // JSON string
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([projectId, createdAt])
 }

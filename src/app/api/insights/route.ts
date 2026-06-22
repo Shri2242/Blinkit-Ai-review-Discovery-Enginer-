@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   const project = await ensureProject(projectId);
 
   const reviews = await db.review.findMany({
-    where: { projectId: project.id, processed: true },
+    where: { projectId: project.id, processingStatus: "completed" },
     select: {
       id: true,
       text: true,

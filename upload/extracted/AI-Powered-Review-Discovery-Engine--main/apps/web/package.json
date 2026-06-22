@@ -1,0 +1,37 @@
+{
+  "name": "@review-engine/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf .next dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@review-engine/shared": "workspace:*",
+    "axios": "^1.7.0",
+    "clsx": "^2.1.0",
+    "date-fns": "^3.6.0",
+    "firebase": "^12.15.0",
+    "lucide-react": "^0.460.0",
+    "next": "^14.2.29",
+    "next-themes": "^0.4.6",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-hot-toast": "^2.4.0",
+    "recharts": "^3.8.1",
+    "tailwind-merge": "^2.3.0",
+    "zustand": "^4.5.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.8.3"
+  }
+}
