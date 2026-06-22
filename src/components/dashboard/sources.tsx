@@ -681,6 +681,7 @@ function AddSourceDialog({
   onCreated: () => void;
 }) {
   const { toast } = useToast();
+  const activeProjectId = useApp((s) => s.activeProjectId);
   const [sourceType, setSourceType] = useState<SourceTypeKey>("google_play");
   const [name, setName] = useState("");
   const [config, setConfig] = useState<Record<string, string>>({});
@@ -846,6 +847,7 @@ interface UploadResult {
 
 function ManualUpload() {
   const { toast } = useToast();
+  const activeProjectId = useApp((s) => s.activeProjectId);
   const [format, setFormat] = useState<"csv" | "json">("csv");
   const [content, setContent] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -870,7 +872,7 @@ function ManualUpload() {
     }
     setUploading(true);
     try {
-      const r = await api.ingest(content, format);
+      const r = await api.ingest(content, format, activeProjectId);
       const res: UploadResult = {
         inserted: r.inserted,
         skipped: r.skipped,
@@ -910,7 +912,7 @@ function ManualUpload() {
   const runAnalysis = async () => {
     setAnalyzing(true);
     try {
-      const r = await api.analyze(20);
+      const r = await api.analyze(20, activeProjectId);
       toast({
         title: "AI analysis queued",
         description: r.message ?? `Processed ${r.processed} new reviews.`,
