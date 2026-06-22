@@ -1,0 +1,78 @@
+# =============================================================================
+# ReviewPulse — Dependabot configuration (CANONICAL location)
+# =============================================================================
+# GitHub reads Dependabot config ONLY from:
+#   .github/dependabot.yml   (this file)
+#   .github/dependabot.yaml
+#
+# A copy also exists at .github/workflows/dependabot.yml per the original
+# task spec, but GitHub will NOT read it from there — this file is the one
+# that actually takes effect.
+#
+# What this does:
+#   - Checks npm (bun.lock is a normal lockfile Dependabot understands for
+#     the npm ecosystem) for outdated dependencies every Monday.
+#   - Opens pull requests grouped: one PR for dev dependencies, one for
+#     production dependencies, so review noise stays low.
+#   - Targets the `main` branch.
+#   - Auto-assigns no one (set assignees below if you want reviewers).
+# =============================================================================
+
+version: 2
+
+updates:
+  # npm ecosystem — covers package.json + bun.lock (Dependabot parses the
+  # lockfile regardless of whether it was produced by npm/pnpm/yarn/bun).
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      # Use a specific time + timezone so checks don't all fire at once and
+      # hammer the registry. 09:00 Asia/Kolkata = 03:30 UTC Monday.
+      time: "09:00"
+      timezone: "Asia/Kolkata"
+    target-branch: "main"
+    open-pull-requests-limit: 10
+    # Group devDependencies into a single PR; production deps each get their
+    # own PR (safer to review one prod upgrade at a time).
+    groups:
+      dev-dependencies:
+        patterns:
+          - "*"
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+    # Skip major bumps for these high-churn packages to avoid noisy PRs.
+    ignore:
+      - dependency-name: "@types/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "npm"
+
+  # Keep GitHub Actions themselves up to date (checkout, setup-node,
+  # setup-bun, etc.) — best practice whenever you have workflows.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Kolkata"
+    target-branch: "main"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(ci)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "github-actions"

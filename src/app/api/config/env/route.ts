@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { errorResponse } from "@/lib/rbac";
+import { isTwilioConfigured, isResendConfigured, isFirebaseConfigured } from "@/lib/notifications";
+import { isDeepSeekConfigured } from "@/lib/deepseek";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/config/env — report which production env vars are configured.
-// Used by the Settings → Production Setup panel. Only shows booleans, never
-// the actual secret values. Requires authentication.
 export async function GET() {
   try {
     const session = await getSession();
@@ -17,13 +17,12 @@ export async function GET() {
     return NextResponse.json({
       database: {
         configured: has(process.env.DATABASE_URL),
-        provider: process.env.DATABASE_URL?.startsWith("postgresql") ? "postgresql" : process.env.DATABASE_URL?.startsWith("file:") ? "sqlite" : "unknown",
+        provider: process.env.DATABASE_URL?.startsWith("postgresql") || process.env.DATABASE_URL?.startsWith("postgres") ? "postgresql" : process.env.DATABASE_URL?.startsWith("file:") ? "sqlite" : "unknown",
         isProduction: process.env.DATABASE_URL?.startsWith("postgresql") ?? false,
       },
       jwtSecret: { configured: has(process.env.JWT_SECRET) },
       ai: {
-        deepseek: { configured: has(process.env.DEEPSEEK_API_KEY), baseUrl: process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com" },
-        // z-ai-web-dev-sdk is always available in this sandbox as the fallback LLM.
+        deepseek: { configured: isDeepSeekConfigured(), baseUrl: process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com" },
         zai: { configured: true, note: "Always available as the sandbox LLM fallback." },
       },
       embeddings: {
@@ -33,7 +32,9 @@ export async function GET() {
       },
       auth: {
         google: { configured: has(process.env.GOOGLE_CLIENT_ID) && has(process.env.GOOGLE_CLIENT_SECRET) },
-        twilio: { configured: has(process.env.TWILIO_ACCOUNT_SID) && has(process.env.TWILIO_AUTH_TOKEN) },
+        twilio: { configured: isTwilioConfigured(), note: isTwilioConfigured() ? "Real SMS enabled." : "Set TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN + TWILIO_PHONE_NUMBER." },
+        resend: { configured: isResendConfigured(), note: isResendConfigured() ? "Real email enabled." : "Set RESEND_API_KEY + RESEND_FROM_EMAIL for real email." },
+        firebase: { configured: isFirebaseConfigured(), note: isFirebaseConfigured() ? "Firebase Admin SDK active." : "Set FIREBASE_PROJECT_ID + FIREBASE_SERVICE_ACCOUNT (JSON)." },
         email: { configured: true, note: "Always available (scrypt + JWT)." },
         guest: { configured: true, note: "Always available." },
       },

@@ -166,11 +166,15 @@ export const api = {
     jwtSecret: { configured: boolean };
     ai: { deepseek: { configured: boolean; baseUrl: string }; zai: { configured: boolean; note: string } };
     embeddings: { model: string; local: boolean; note: string };
-    auth: { google: { configured: boolean }; twilio: { configured: boolean }; email: { configured: boolean; note: string }; guest: { configured: boolean; note: string } };
+    auth: { google: { configured: boolean }; twilio: { configured: boolean }; email: { configured: boolean; note: string }; guest: { configured: boolean; note: string }; firebase: { configured: boolean }; resend: { configured: boolean } };
     redis: { configured: boolean };
     appUrl: string | null;
     nodeEnv: string;
   }>("/api/config/env"),
+
+  /* ---- Test a specific integration's connection ---- */
+  testConnection: (service: "deepseek" | "twilio" | "resend" | "firebase" | "google" | "postgres", payload?: Record<string, unknown>) =>
+    jsonFetch<{ ok: boolean; message: string; details?: unknown }>("/api/config/test", { method: "POST", body: JSON.stringify({ service, payload }) }),
 };
 
 export const SOURCE_LABELS: Record<string, string> = {

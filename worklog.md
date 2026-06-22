@@ -464,3 +464,101 @@ Verified via curl:
 
 Stage Summary:
 - ALL features from the user's original project are now integrated: the complete 11-theme taxonomy, chat history persistence, report schedules (daily/weekly/monthly), webhooks (HMAC-signed), saved searches, forgot/reset password, refresh tokens, Firebase auth, real Google Play + App Store collectors, processing status enum, upload batches, activity log with entity types, insights table, analytics daily. The frontend design is preserved.
+
+---
+Task ID: k7
+Agent: github-actions-writer
+Task: Write production-ready GitHub Actions workflows for ReviewPulse (Next.js app, API route handlers ARE the backend, runs on port 3000): daily-collection.yml (cron 10 AM IST + dispatch, calls /api/collect → looped /api/analyze → /api/embed → /api/health), pr-checks.yml (lint + tsc), deploy-vercel.yml (Vercel CLI prod deploy on push to main), dependabot.yml (weekly npm updates).
+
+Work Log:
+- Read /home/z/my-project/worklog.md (Tasks 1→i1-i11) for project context: single Next.js 16 app, Prisma+SQLite, bun-based (bun.lock committed), API routes at src/app/api/*, daily pipeline = collect → analyze → embed → health. Read package.json (scripts: lint=eslint ., no typecheck script, prisma available), src/app/api/{collect,analyze,embed,health}/route.ts to confirm request/response shapes: /api/collect POST {sourceId?} → {ok,results}; /api/analyze POST {limit} → {ok,processed}; /api/embed POST {limit} → {ok,embedded}; /api/health GET → {status,service,time}. Read src/lib/rbac.ts to confirm routes use requireProjectAccess (so the Bearer token must be honored by the deployed auth layer). Read vercel.json (framework=nextjs, installCommand=bun install, regions=[bom1], function maxDurations set).
+- Found a pre-existing .github/workflows/daily-collection.yml that used pnpm + conditional Authorization header. The task spec mandates bun (oven-sh/setup-bun@v1) + always-on Authorization: Bearer header + explicit permissions/concurrency + the XTransformPort note, so overwrote it cleanly with the spec-compliant version (kept none of the pnpm logic).
+- Wrote /home/z/my-project/.github/workflows/daily-collection.yml:
+  - Triggers: schedule cron "30 4 * * *" (04:30 UTC = 10:00 AM IST) + workflow_dispatch.
+  - permissions: contents: read (least-privilege for a cron that only reads checkout).
+  - concurrency: group daily-collection, cancel-in-progress: false (do NOT cancel a half-finished collect/analyze cycle — would leave DB in confusing state; new run waits).
+  - Steps: checkout → setup-node@v4 (Node 20) → oven-sh/setup-bun@v1 → bun install --frozen-lockfile → bunx prisma generate (DATABASE_URL env) → bunx prisma db push --accept-data-loss (DATABASE_URL env) → 4 curl steps.
+  - Each curl uses `curl -sS -w "\n%{http_code}"` then splits HTTP_CODE (tail -n1) + BODY (sed '$d'), echoes both, exits 1 if HTTP_CODE != 200. Headers always include `Content-Type: application/json` + `Authorization: Bearer ${API_AUTH_TOKEN}` (no conditional — matches task spec and fails loudly if secret unset).
+  - /api/collect: POST -d '{"sourceId":null}' (runs all enabled sources for the active project).
+  - /api/analyze: bash loop `for i in $(seq 1 10)` posting -d '{"limit":50}', parses `.processed` with `jq -r '.processed // 0'` (jq ships on ubuntu-latest; `|| echo 0` fallback), accumulates TOTAL, breaks when PROCESSED=0. Each iteration prints HTTP code + body.
+  - /api/embed: single POST -d '{"limit":200}'.
+  - /api/health: GET, same print + exit-1-on-non-200 pattern.
+  - Header comment documents required secrets (API_BASE_URL, API_AUTH_TOKEN, DATABASE_URL) and the XTransformPort note (NOT needed since API is on port 3000).
+- Wrote /home/z/my-project/.github/workflows/pr-checks.yml:
+  - Triggers: pull_request + push on main. permissions: contents: read. concurrency: cancel-in-progress for PRs, run-to-completion for main pushes.
+  - Steps: checkout → setup-node 20 → oven-sh/setup-bun@v1 → bun install --frozen-lockfile → `bun run lint` (ESLint via package.json script) → `bunx tsc --noEmit` (repo has no typecheck script).
+  - Comment block explains tests are skipped because the sandbox prohibits test code, and shows the exact `bun run test` step you'd add for the monorepo version (apps/api + apps/web + packages/* via Vitest workspaces).
+- Wrote /home/z/my-project/.github/workflows/deploy-vercel.yml:
+  - Triggers: push on main + workflow_dispatch. permissions: contents: read. concurrency: cancel-in-progress true (latest push wins). environment: production (gates deploy on a GitHub environment if configured).
+  - Steps: checkout → setup-node 20 → `npm install --global vercel@latest` → `vercel deploy --prod --token $VERCEL_TOKEN --yes` with VERCEL_ORG_ID + VERCEL_PROJECT_ID passed as env (CLI reads these to target the project without a committed .vercel/ dir). Captures the returned deployment URL and prints it via `::notice::`.
+  - Header comment documents all 3 required secrets (VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID) + how to find them, and notes the vercel.json already exists in-repo.
+- Dependabot: discovered GitHub only reads config from .github/dependabot.yml (NOT .github/workflows/dependabot.yml). To honor both "production-ready (actually works)" AND the task's explicit path, wrote BOTH:
+  - /home/z/my-project/.github/dependabot.yml — the canonical, effective copy.
+  - /home/z/my-project/.github/workflows/dependabot.yml — same content with a prominent header comment explaining GitHub ignores it here and pointing to the canonical copy.
+  - Config: npm ecosystem (covers bun.lock), weekly on Monday 09:00 Asia/Kolkata, targets main, open-pull-requests-limit 10, groups dev-deps into one PR, ignores major bumps for @types/* + eslint + typescript (high-churn), commit prefix chore(deps). Plus a github-actions ecosystem entry to keep checkout/setup-node/setup-bun actions current.
+- Validation: ran `python3 -c "import yaml; yaml.safe_load(open(f))"` on all 5 YAML files → all parse OK. Wrote a bash test harness simulating the curl response-split + jq parse + analyze-loop break logic → all 5 test cases PASS (200+processed:5, 200+processed:0, 500-error, multi-line body, loop-break-on-zero). No build/lint commands run per task instructions.
+
+Stage Summary:
+- 5 files written (4 workflows + dependabot config), all valid YAML, all bash logic validated locally:
+  - .github/workflows/daily-collection.yml (overwrote pre-existing pnpm version)
+  - .github/workflows/pr-checks.yml
+  - .github/workflows/deploy-vercel.yml
+  - .github/workflows/dependabot.yml (per task spec path; documented as non-effective location)
+  - .github/dependabot.yml (canonical, effective Dependabot config)
+- Required GitHub secrets (documented inline in each file): API_BASE_URL, API_AUTH_TOKEN, DATABASE_URL (daily-collection); VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID (deploy-vercel). pr-checks + dependabot need no secrets.
+- Daily pipeline is idempotent + concurrency-guarded: one run at a time, each curl fails the job on non-200, analyze loop is capped at 10 iterations and breaks on processed:0, health check verifies the app at the end.
+- Next action (out of scope for k7): the deployed API's auth layer (src/lib/rbac.ts → getAuthContext → getSession) currently reads session JWTs, not opaque bearer tokens — a downstream task should add a service-account token check (e.g. compare Authorization: Bearer against a API_AUTH_TOKEN env var) so the daily-collection workflow's bearer token is actually honored in production.
+
+---
+Task ID: k6+k9
+Agent: deployment-files-writer
+Task: Write production Postgres schema + env files: prisma/schema.postgres.prisma (Postgres+pgvector), prisma/add-pgvector.sql (extension+column+IVFFlat index), .env.production.example (every key the app reads), DEPLOYMENT.md (full step-by-step guide).
+
+Work Log:
+- Read /home/z/my-project/worklog.md for prior context (Tasks 1 → i1-i11) and prisma/schema.prisma (398 lines, 16 models, SQLite provider) to copy the schema byte-for-byte and only change what's necessary for Postgres+pgvector.
+- Cross-referenced every env var the app actually reads by grepping `process.env.*` across src/ — confirmed the canonical set: DATABASE_URL, JWT_SECRET, DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, RESEND_API_KEY, RESEND_FROM_EMAIL, FIREBASE_PROJECT_ID, FIREBASE_SERVICE_ACCOUNT, REDIS_URL, NEXT_PUBLIC_APP_URL, NODE_ENV. (MOCK_AI is included per spec for future use; not yet referenced in code but documented as optional dev flag.)
+- Read /home/z/my-project/src/app/api/auth/setup/route.ts to confirm the bootstrap endpoint shape (POST /api/auth/setup, idempotent guard on user count, returns demo creds pm@reviewpulse.dev / ReviewPulse123!) so DEPLOYMENT.md's "first-run setup" step is accurate.
+- Read /home/z/my-project/src/app/api/config/env/route.ts to confirm which env vars the Production Setup tab reports on (Database provider sniffed from DATABASE_URL prefix, JWT_SECRET, DEEPSEEK_*, embeddings always-local, GOOGLE_CLIENT_*, TWILIO_*, RESEND_*, FIREBASE_*, REDIS_URL, NEXT_PUBLIC_APP_URL) so the .env.example groups + comments match what the operator sees in the UI.
+
+- Wrote /home/z/my-project/prisma/schema.postgres.prisma (430 lines):
+  - Top-of-file comment block with the exact 4-step onboarding sequence: cp schema.postgres.prisma schema.prisma → set DATABASE_URL → bunx prisma db push → run prisma/add-pgvector.sql.
+  - Changed `datasource db.provider` from "sqlite" to "postgresql" (everything else in the datasource + generator blocks identical).
+  - Changed `ReviewEmbedding.embedding` from `String // JSON-encoded number[] vector` to `Unsupported("vector(384)")` with a 4-line inline comment explaining: Prisma can't manage the column directly → created by add-pgvector.sql → reads/writes go through $queryRaw/$executeRaw with the <=> cosine operator. Added a model-level doc comment on ReviewEmbedding making the same point.
+  - Added an inline comment on `Review.keyPhrases` (was String?) explaining: on Postgres this could be a native `text[]` but we keep it as JSON-encoded String so the schema stays byte-for-byte portable between the SQLite sandbox and Postgres prod; src/lib/ai.ts already serializes/parses it.
+  - Verified every other model, field, relation, @@unique, @@index, default value, and doc comment is byte-identical to the SQLite version (User, Project, ProjectMember, Review, UploadBatch, CollectorSource, CollectorLog, ApiKey, ChatMessage, Insight, SavedSearch, AnalyticsDaily, ReportSchedule, WebhookConfig, WebhookDelivery, ActivityLog — all 16 models preserved).
+
+- Wrote /home/z/my-project/prisma/add-pgvector.sql (47 lines):
+  - Header comment block explaining: why this file exists (Prisma skips Unsupported(...) columns), how to run it (psql -f OR paste into Neon/Supabase SQL editor), and a sample nearest-neighbor query using `<=>` so the operator has a copy-paste reference.
+  - Statement 1: `CREATE EXTENSION IF NOT EXISTS vector;` (idempotent, with a note about Neon/Supabase defaults vs self-hosted needing the package).
+  - Statement 2: `ALTER TABLE review_embeddings ADD COLUMN IF NOT EXISTS embedding_vec vector(384);` — deliberately named `embedding_vec` (not `embedding`) to avoid any future collision with Prisma-managed columns and to make it obvious in queries that this is the pgvector column. 384 matches xenova/all-MiniLM-L6-v2.
+  - Statement 3: `CREATE INDEX IF NOT EXISTS review_embeddings_embedding_vec_idx ON review_embeddings USING ivfflat (embedding_vec vector_cosine_ops) WITH (lists = 100);` with notes on lists≈rows/1000 rule of thumb + when to switch to HNSW (>1M rows) + the requirement to rebuild after bulk loads.
+  - Statement 4: `ANALYZE review_embeddings;` to refresh planner stats so the new index is picked up immediately.
+
+- Wrote /home/z/my-project/.env.production.example (130 lines):
+  - Top comment: "ReviewPulse — Production Environment Variables. Copy to .env.local or set in your hosting provider." plus the rule that required keys are marked (required) and the rest degrade gracefully + a never-commit-secrets reminder.
+  - Grouped into 7 sections with `# ===...===` headers: DATABASE, SECURITY, AI/LLM, AUTH-GOOGLE OAUTH, AUTH-PHONE (Twilio), NOTIFICATIONS-EMAIL (Resend), AUTH-FIREBASE ADMIN, CACHE/QUEUE-REDIS, APP/FRONTEND, RUNTIME.
+  - Every key has an inline comment explaining: what it's for, where to get it (with URLs: platform.deepseek.com, console.cloud.google.com, console.twilio.com, resend.com/api-keys, console.firebase.google.com), format guidance (postgresql://...?sslmode=require, E.164 for phone, the verified-sender requirement for Resend), and graceful-degradation behavior when unset (e.g. DeepSeek falls back to z-ai SDK; Twilio dev mode returns OTP in response; Redis falls back to in-memory store).
+  - JWT_SECRET comment includes the `openssl rand -hex 32` generator command and a rotate-and-force-re-login warning.
+  - FIREBASE_SERVICE_ACCOUNT comment includes the exact node one-liner to minify+escape the JSON for .env files (since the task spec asked for "single line, escaped"): `node -e "console.log(JSON.stringify(JSON.parse(require('fs').readFileSync('serviceAccount.json','utf8'))))"`.
+  - DATABASE_URL comment explicitly notes pgvector must be enabled (cross-reference to DEPLOYMENT.md + add-pgvector.sql).
+  - MOCK_AI included per spec with description "Set to 'true' for dev/testing without real AI calls."
+  - Placeholder values are clearly fake (`replace-with-openssl-rand-hex-32`, `sk-xxxxxxxx...`, `ep-xxxx.region.aws.neon.tech`) so no one accidentally ships a real-looking secret.
+
+- Wrote /home/z/my-project/DEPLOYMENT.md (245 lines):
+  - "Quick Start (5 minutes)" section at the very top with a 5-command sequence (clone, cp env, cp schema, bun install, db push, psql add-pgvector.sql, curl setup, bun dev, vercel --prod) for operators who already have the accounts.
+  - Prerequisites section listing Node 20+, bun/pnpm/npm, Postgres+pgvector providers (Neon/Supabase/Railway with notes on each), Redis (Upstash), and the 5 integration accounts (DeepSeek, Google Cloud, Twilio, Resend, Firebase) with their console URLs.
+  - Step 1 (Database setup — Neon): 4 numbered substeps including the `SELECT extname FROM pg_extension WHERE extname='vector';` verification query and the explanation of WHY pgvector (RAG semantic search).
+  - Step 2 (Local setup): 7 substeps covering clone, cp env, fill keys, cp schema.postgres.prisma → schema.prisma, bun install, prisma db push, psql add-pgvector.sql, curl /api/auth/setup, prisma generate. Includes the demo credentials.
+  - Step 3 (Vercel deploy): 10 substeps — import repo, framework preset, root directory note, build/install commands, the env-var list to paste, deploy, post-deploy URL fix + Google OAuth callback URI registration, then the live first-run setup curl.
+  - Step 4 (Optional Railway backend for the monorepo Express version): 7 substeps including the root-directory setting, multi-line FIREBASE_SERVICE_ACCOUNT note, +Postgres plugin, +Redis plugin, PORT handling, deploy. Clearly marked as SKIP if using Vercel-only.
+  - Step 5 (GitHub Actions): 4 substeps — repo secrets to add (DATABASE_URL, DEEPSEEK_API_KEY, API_BASE_URL, optional API_KEY), enable daily-collection workflow, manual trigger from Actions tab, log verification.
+  - Step 6 (Verify): 5 checks — health endpoint, login with demo creds, run a collector + check Production Setup tab, dashboard + RAG chat smoke test, pgvector row count verification query.
+  - Troubleshooting section with 9 entries covering the realistic prod failure modes: pgvector extension missing, Unsupported() column behavior (expected, not an error), JWT_SECRET mismatch local-vs-Vercel, google-play-scraper ESM on Vercel, OAuth redirect_uri_mismatch, Twilio trial verified-numbers, IVFFlat index not used + HNSW upgrade path, FIREBASE_SERVICE_ACCOUNT escaping (raw JSON in Vercel UI vs escaped in .env), Vercel function timeout on /api/collect with 3 remediation options (Pro/Railway/GitHub Actions), "Database is SQLite" warning when the schema swap wasn't done.
+  - File reference table + What's next section (backups/PITR, Sentry+Vercel Analytics, distributed rate limiting via Redis, custom domains).
+
+- No build / lint commands run per task instructions. Verified all 4 files exist on disk via the Write tool's success responses. The Postgres schema is byte-identical to the SQLite schema in every model/field/relation/index except for the two intentional changes (provider + embedding type) and the added explanatory comments.
+
+Stage Summary:
+- 4 production files written: prisma/schema.postgres.prisma (Postgres+pgvector schema, byte-for-byte portable with the SQLite version except provider + Unsupported("vector(384)") + comments), prisma/add-pgvector.sql (idempotent extension + column + IVFFlat index + ANALYZE), .env.production.example (every env var the app reads, grouped + commented, with the FIREBASE_SERVICE_ACCOUNT escaping one-liner), DEPLOYMENT.md (Quick Start + 6 numbered steps + 9-entry troubleshooting + file reference).
+- Together these let an operator go from `git clone` to a live Postgres+pgvector deployment on Vercel+Neon in well under an hour, with the pgvector column managed entirely by raw SQL (since Prisma can't declare it natively) and a clear readiness panel (/api/config/env + Settings → Production Setup tab) for verifying each integration is wired.
+- Next action (out of scope for k6+k9): the application code's embedding read/write paths (src/lib/embeddings.ts + src/lib/ai.ts retrieveReviewsByVector) currently serialize the vector as JSON for SQLite. A follow-up task should add a Postgres-aware branch that uses `prisma.$queryRaw` with the `<=>` operator against `embedding_vec` when DATABASE_URL starts with `postgresql://`. The schema + SQL scaffolding from this task is already in place for that switch.

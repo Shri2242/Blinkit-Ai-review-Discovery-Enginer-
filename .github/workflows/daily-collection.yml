@@ -2,21 +2,36 @@
 # ReviewPulse — Daily collection + analysis + embedding pipeline
 # =============================================================================
 # Runs every day at 10:00 AM IST (04:30 UTC) and on manual dispatch.
-# Hits the deployed app's /api/collect, /api/analyze, and /api/embed
-# endpoints in that order so newly collected reviews are analyzed and
-# then embedded for the RAG chat.
 #
+# Pipeline (calls the deployed app's own API — the Next.js route handlers ARE
+# the backend, so there is no separate worker service to invoke):
+#   1. POST /api/collect   — pull fresh reviews from all enabled sources.
+#   2. POST /api/analyze   — run pending reviews through the AI analyzer
+#                            (limit=50 per call), looped up to 10 times
+#                            until the endpoint reports processed: 0.
+#   3. POST /api/embed     — generate + store 384-dim embeddings for newly
+#                            analyzed reviews (limit=200 per call).
+#   4. GET  /api/health    — verify the app is still up at the end.
+#
+# Each curl step prints the HTTP status code + response body and exits 1 on
+# any non-200 response, so a failed step fails the workflow loudly.
+#
+# -----------------------------------------------------------------------------
 # Required GitHub secrets:
-#   API_BASE_URL  — Base URL of the deployed ReviewPulse app
-#                   (e.g. https://reviewpulse.vercel.app)
-#   DATABASE_URL  — PostgreSQL connection string (used by prisma db push
-#                   to keep the schema in sync; not used to call the API)
-#
-# Optional GitHub secrets:
-#   API_AUTH_TOKEN — Bearer token sent as Authorization header. The current
-#                    sandbox endpoints accept unauthenticated calls via the
-#                    demo project fallback; gate them in production and pass
-#                    the token here.
+#   API_BASE_URL    — Base URL of the deployed ReviewPulse app (no trailing
+#                     slash), e.g. https://reviewpulse.vercel.app
+#   API_AUTH_TOKEN  — Bearer token sent as `Authorization: Bearer <token>`.
+#                     The deployed API must be configured to accept this
+#                     service-account token (see src/lib/rbac.ts +
+#                     src/lib/auth.ts — production should add a token check
+#                     for machine-to-machine calls like this one).
+#   DATABASE_URL    — Connection string for the Prisma database, used by
+#                     `prisma db push` to keep the deployed schema in sync.
+#                     (SQLite for the sandbox; PostgreSQL in production.)
+# -----------------------------------------------------------------------------
+# Note on XTransformPort: the sandbox gateway requires a `?XTransformPort=NNNN`
+# query param to reach non-3000 ports. The ReviewPulse API listens on 3000,
+# so the param is NOT needed for these calls.
 # =============================================================================
 
 name: Daily review collection
@@ -26,10 +41,17 @@ on:
     # 04:30 UTC = 10:00 AM IST (IST = UTC+5:30)
     - cron: "30 4 * * *"
   workflow_dispatch:
-    # Allow manual runs from the Actions tab.
+    # Allow manual runs from the Actions tab (useful for re-runs + smoke tests).
 
-# Cancel any in-flight run when a new one starts (defensive — shouldn't
-# happen for a daily cron, but useful for manual re-runs).
+# Minimal, least-privilege permissions for a cron job that only reads the
+# repo checkout and never pushes back.
+permissions:
+  contents: read
+
+# Only one run at a time — two concurrent collection runs would race on the
+# same collector sources and double-count reviews. New runs wait for the
+# in-flight one to finish (we do NOT cancel, because a half-finished
+# collect/analyze cycle would leave the DB in a confusing state).
 concurrency:
   group: daily-collection
   cancel-in-progress: false
@@ -38,7 +60,7 @@ jobs:
   collect-analyze-embed:
     name: Collect → Analyze → Embed
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -49,31 +71,33 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
+      # The sandbox + this repo use bun (bun.lock is committed), so we use
+      # bun for install + script execution. Node is still installed above
+      # because some tooling (e.g. certain Prisma binaries) expect it.
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v1
         with:
-          version: 9
+          bun-version: latest
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Show Prisma version
-        run: pnpm exec prisma --version
+        run: bun install --frozen-lockfile
 
       - name: Generate Prisma client
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: pnpm exec prisma generate
+        run: bunx prisma generate
 
       - name: Push schema to database
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: pnpm exec prisma db push --accept-data-loss
+        run: bunx prisma db push --accept-data-loss
 
       # -------------------------------------------------------------------------
-      # Step 1: Collect — pull fresh reviews from enabled collector sources.
+      # Step 1: Collect — pull fresh reviews from all enabled collector sources.
+      # POST /api/collect with no sourceId runs every enabled source for the
+      # authenticated user's active project.
       # -------------------------------------------------------------------------
-      - name: Run collectors
+      - name: Run collectors (POST /api/collect)
         env:
           API_BASE_URL: ${{ secrets.API_BASE_URL }}
           API_AUTH_TOKEN: ${{ secrets.API_AUTH_TOKEN }}
@@ -83,68 +107,69 @@ jobs:
           RESPONSE=$(curl -sS -w "\n%{http_code}" \
             -X POST \
             -H "Content-Type: application/json" \
-            ${API_AUTH_TOKEN:+-H "Authorization: Bearer ${API_AUTH_TOKEN}"} \
+            -H "Authorization: Bearer ${API_AUTH_TOKEN}" \
             -d '{"sourceId":null}' \
             "${API_BASE_URL}/api/collect")
           HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
           BODY=$(echo "$RESPONSE" | sed '$d')
-          echo "HTTP $HTTP_CODE"
-          echo "$BODY" | head -c 2000
-          echo
-          if [ "$HTTP_CODE" != "200" ]; then
-            echo "::error::/api/collect returned HTTP $HTTP_CODE"
+          echo "HTTP status: ${HTTP_CODE}"
+          echo "Response body:"
+          echo "${BODY}"
+          if [ "${HTTP_CODE}" != "200" ]; then
+            echo "::error::/api/collect returned HTTP ${HTTP_CODE}"
             exit 1
           fi
           echo "::endgroup::"
 
       # -------------------------------------------------------------------------
       # Step 2: Analyze — run unprocessed reviews through the LLM analyzer.
-      # /api/analyze processes up to `limit` reviews per call (max 50).
-      # We loop until it reports 0 processed, capped at 10 iterations.
+      # /api/analyze processes up to `limit` reviews per call (max 50). We
+      # loop until it reports processed: 0 (i.e. nothing left to analyze),
+      # capped at 10 iterations as a safety net.
       # -------------------------------------------------------------------------
-      - name: Analyze new reviews
+      - name: Analyze new reviews (POST /api/analyze, looped)
         env:
           API_BASE_URL: ${{ secrets.API_BASE_URL }}
           API_AUTH_TOKEN: ${{ secrets.API_AUTH_TOKEN }}
         run: |
           set -euo pipefail
-          echo "::group::POST /api/analyze (loop)"
+          echo "::group::POST /api/analyze (loop, max 10 iterations)"
           TOTAL=0
           for i in $(seq 1 10); do
             RESPONSE=$(curl -sS -w "\n%{http_code}" \
               -X POST \
               -H "Content-Type: application/json" \
-              ${API_AUTH_TOKEN:+-H "Authorization: Bearer ${API_AUTH_TOKEN}"} \
+              -H "Authorization: Bearer ${API_AUTH_TOKEN}" \
               -d '{"limit":50}' \
               "${API_BASE_URL}/api/analyze")
             HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
             BODY=$(echo "$RESPONSE" | sed '$d')
-            echo "Iteration $i: HTTP $HTTP_CODE"
-            echo "$BODY" | head -c 1000
-            echo
-            if [ "$HTTP_CODE" != "200" ]; then
-              echo "::error::/api/analyze returned HTTP $HTTP_CODE"
+            echo "Iteration ${i} — HTTP status: ${HTTP_CODE}"
+            echo "Response body:"
+            echo "${BODY}"
+            if [ "${HTTP_CODE}" != "200" ]; then
+              echo "::error::/api/analyze returned HTTP ${HTTP_CODE} on iteration ${i}"
               exit 1
             fi
-            # Extract "processed" count from JSON without jq (portable).
-            PROCESSED=$(echo "$BODY" | sed -n 's/.*"processed":[[:space:]]*\([0-9]\+\).*/\1/p')
-            PROCESSED=${PROCESSED:-0}
+            # jq ships on ubuntu-latest; fall back to 0 if the field is absent.
+            PROCESSED=$(echo "${BODY}" | jq -r '.processed // 0' 2>/dev/null || echo 0)
             TOTAL=$((TOTAL + PROCESSED))
-            echo "Iteration $i processed=$PROCESSED (running total=$TOTAL)"
-            if [ "$PROCESSED" -eq 0 ]; then
-              echo "No more unprocessed reviews. Done."
+            echo "Iteration ${i}: processed=${PROCESSED} (running total=${TOTAL})"
+            if [ "${PROCESSED}" -eq 0 ]; then
+              echo "No more unprocessed reviews — stopping loop."
               break
             fi
           done
-          echo "Total analyzed this run: $TOTAL"
+          echo "Total reviews analyzed this run: ${TOTAL}"
           echo "::endgroup::"
 
       # -------------------------------------------------------------------------
       # Step 3: Embed — generate + store 384-dim embeddings for newly
       # analyzed reviews. /api/embed processes up to `limit` per call
-      # (max 200). One pass is enough for typical daily volumes.
+      # (max 200). One pass is enough for typical daily volumes; if the
+      # backlog is larger, bump the limit or add a loop like step 2.
       # -------------------------------------------------------------------------
-      - name: Generate embeddings
+      - name: Generate embeddings (POST /api/embed)
         env:
           API_BASE_URL: ${{ secrets.API_BASE_URL }}
           API_AUTH_TOKEN: ${{ secrets.API_AUTH_TOKEN }}
@@ -154,28 +179,42 @@ jobs:
           RESPONSE=$(curl -sS -w "\n%{http_code}" \
             -X POST \
             -H "Content-Type: application/json" \
-            ${API_AUTH_TOKEN:+-H "Authorization: Bearer ${API_AUTH_TOKEN}"} \
+            -H "Authorization: Bearer ${API_AUTH_TOKEN}" \
             -d '{"limit":200}' \
             "${API_BASE_URL}/api/embed")
           HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
           BODY=$(echo "$RESPONSE" | sed '$d')
-          echo "HTTP $HTTP_CODE"
-          echo "$BODY" | head -c 1000
-          echo
-          if [ "$HTTP_CODE" != "200" ]; then
-            echo "::error::/api/embed returned HTTP $HTTP_CODE"
+          echo "HTTP status: ${HTTP_CODE}"
+          echo "Response body:"
+          echo "${BODY}"
+          if [ "${HTTP_CODE}" != "200" ]; then
+            echo "::error::/api/embed returned HTTP ${HTTP_CODE}"
             exit 1
           fi
           echo "::endgroup::"
 
       # -------------------------------------------------------------------------
-      # Always post a final health check so the run's logs end with a
-      # green signal (or a visible failure).
+      # Step 4: Health check — verify the app is still responding. This runs
+      # unconditionally (even if a previous step failed, `if: always` would
+      # be needed for that — here we keep it sequential so a failure above
+      # short-circuits, which is the desired behavior).
       # -------------------------------------------------------------------------
-      - name: Health check
+      - name: Health check (GET /api/health)
         env:
           API_BASE_URL: ${{ secrets.API_BASE_URL }}
         run: |
           set -euo pipefail
-          curl -fsS "${API_BASE_URL}/api/health" | head -c 500
-          echo
+          echo "::group::GET /api/health"
+          RESPONSE=$(curl -sS -w "\n%{http_code}" \
+            -X GET \
+            "${API_BASE_URL}/api/health")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          echo "HTTP status: ${HTTP_CODE}"
+          echo "Response body:"
+          echo "${BODY}"
+          if [ "${HTTP_CODE}" != "200" ]; then
+            echo "::error::/api/health returned HTTP ${HTTP_CODE}"
+            exit 1
+          fi
+          echo "::endgroup::"

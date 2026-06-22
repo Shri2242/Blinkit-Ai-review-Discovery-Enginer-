@@ -1,0 +1,73 @@
+# =============================================================================
+# ReviewPulse — PR / push CI checks
+# =============================================================================
+# Runs on every pull request and on every push to `main`.
+#
+# Runs ESLint + a TypeScript type-check. No build step (the task explicitly
+# forbids running build commands here — Vercel builds on deploy).
+#
+# NOTE on tests: this sandbox build intentionally contains NO test files
+# (the sandbox prohibits test code), so `bun run test` is omitted. In the
+# full monorepo version of ReviewPulse (apps/api, apps/web, packages/*),
+# you would add a step here:
+#
+#   - name: Run tests
+#     run: bun run test
+#
+# (The monorepo's root package.json wires Vitest workspaces via
+# `bun run test`.)
+# =============================================================================
+
+name: PR checks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Least-privilege: only need to read the checkout. No PR comments, no
+# statuses writes beyond what GitHub auto-grants for check runs.
+permissions:
+  contents: read
+
+# For PRs, cancel any superseded run on the same ref so devs get the
+# latest signal fast. Pushes to main run to completion.
+concurrency:
+  group: pr-checks-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  lint-and-typecheck:
+    name: Lint + typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # `bun run lint` → `eslint .` (see package.json scripts).
+      # ESLint config lives in eslint.config.mjs (flat config).
+      - name: Run ESLint
+        run: bun run lint
+
+      # `bunx tsc --noEmit` type-checks the whole project without emitting
+      # .js files. The repo has no dedicated `typecheck` script, so we call
+      # tsc directly. (Add `"typecheck": "tsc --noEmit"` to package.json
+      # scripts and switch to `bun run typecheck` if you prefer.)
+      - name: Type check (tsc --noEmit)
+        run: bunx tsc --noEmit

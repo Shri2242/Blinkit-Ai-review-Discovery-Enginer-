@@ -116,7 +116,81 @@ export async function POST(req: NextRequest) {
     }
 
     await logActivity(ctx.user.id, "collect.run", ctx.project!.id, { count: results.length });
-    return NextResponse.json({ ok: true, results });
+
+    // Auto-trigger AI analysis on newly-collected reviews (if any were inserted).
+    const totalNew = results.reduce((sum, r) => sum + (r.new ?? 0), 0);
+    let analysisResult = null;
+    let embeddingResult = null;
+    if (totalNew > 0) {
+      try {
+        const { analyzeReviews } = await import("@/lib/ai");
+        const unprocessed = await db.review.findMany({
+          where: { projectId: ctx.project!.id, processingStatus: "pending" },
+          take: 50,
+          orderBy: { createdAt: "asc" },
+          select: { id: true, text: true, rating: true, source: true },
+        });
+        if (unprocessed.length > 0) {
+          const BATCH = 8;
+          let processedCount = 0;
+          for (let i = 0; i < unprocessed.length; i += BATCH) {
+            const batch = unprocessed.slice(i, i + BATCH);
+            const aiResults = await analyzeReviews(batch.map((r) => ({ id: r.id, text: r.text, rating: r.rating, source: r.source })));
+            for (let j = 0; j < batch.length; j++) {
+              const r = batch[j];
+              const a = aiResults[j];
+              if (!a) continue;
+              await db.review.update({
+                where: { id: r.id },
+                data: {
+                  processingStatus: "completed",
+                  processedAt: new Date(),
+                  sentiment: a.sentiment, sentimentScore: a.sentimentScore,
+                  theme: a.theme, subTheme: a.subTheme, priority: a.priority,
+                  priorityReason: a.priorityReason, summary: a.summary,
+                  keyPhrases: JSON.stringify(a.keyPhrases),
+                  isBug: a.isBug, isFeatureRequest: a.isFeatureRequest, isActionable: a.isActionable,
+                },
+              });
+              processedCount++;
+            }
+          }
+          analysisResult = { processed: processedCount };
+
+          // Auto-generate embeddings for the freshly-analyzed reviews.
+          try {
+            const { embedBatch, EMBEDDING_DIM, EMBEDDING_MODEL } = await import("@/lib/embeddings");
+            const needEmbedding = await db.review.findMany({
+              where: { projectId: ctx.project!.id, processingStatus: "completed", embedding: { is: null } },
+              select: { id: true, text: true, title: true },
+              take: 50,
+            });
+            let embedded = 0;
+            for (let i = 0; i < needEmbedding.length; i += 20) {
+              const batch = needEmbedding.slice(i, i + 20);
+              const texts = batch.map((r) => r.title ? `${r.title}. ${r.text}` : r.text);
+              const vectors = await embedBatch(texts);
+              for (let j = 0; j < batch.length; j++) {
+                const vec = vectors[j];
+                if (!vec || vec.length !== EMBEDDING_DIM) continue;
+                await db.reviewEmbedding.deleteMany({ where: { reviewId: batch[j].id } }).catch(() => null);
+                await db.reviewEmbedding.create({
+                  data: { reviewId: batch[j].id, projectId: ctx.project!.id, embeddingModel: EMBEDDING_MODEL, dimensions: EMBEDDING_DIM, embedding: JSON.stringify(vec) },
+                });
+                embedded++;
+              }
+            }
+            embeddingResult = { embedded };
+          } catch (embedErr) {
+            console.error("[collect] auto-embed failed:", embedErr);
+          }
+        }
+      } catch (analyzeErr) {
+        console.error("[collect] auto-analyze failed:", analyzeErr);
+      }
+    }
+
+    return NextResponse.json({ ok: true, results, totalNew, analysis: analysisResult, embeddings: embeddingResult });
   } catch (err) {
     return errorResponse(err);
   }
