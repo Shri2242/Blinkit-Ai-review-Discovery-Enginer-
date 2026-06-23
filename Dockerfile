@@ -40,7 +40,7 @@ FROM node:20-alpine AS deps
 
 # Bun is used for installs (faster than npm/yarn). Alpine needs musl-compatible bun.
 RUN apk add --no-cache libc6-compat \
- && npm install -g bun
+  && npm install -g bun
 
 WORKDIR /app
 
@@ -57,7 +57,7 @@ RUN bun install --frozen-lockfile
 FROM node:20-alpine AS builder
 
 RUN apk add --no-cache libc6-compat \
- && npm install -g bun
+  && npm install -g bun
 
 WORKDIR /app
 
@@ -95,7 +95,7 @@ FROM node:20-alpine AS runner
 
 # Run as a non-root user for defense-in-depth.
 RUN addgroup --system --gid 1001 nodejs \
- && adduser  --system --uid 1001 nextjs
+  && adduser  --system --uid 1001 nextjs
 
 WORKDIR /app
 
