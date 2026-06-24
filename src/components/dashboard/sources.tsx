@@ -983,7 +983,7 @@ function ManualUpload() {
   const runAnalysis = async () => {
     setAnalyzing(true);
     try {
-      const r = await api.analyze(20, activeProjectId);
+      const r = await api.analyze(500, activeProjectId);
       toast({
         title: "AI analysis queued",
         description: r.message ?? `Processed ${r.processed} new reviews.`,

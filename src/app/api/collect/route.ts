@@ -125,7 +125,7 @@ export async function POST(req: NextRequest) {
       const { analyzeReviews } = await import("@/lib/ai");
       const unprocessed = await db.review.findMany({
         where: { projectId: ctx.project!.id, processingStatus: "pending" },
-        take: 50,
+        take: 500,
         orderBy: { createdAt: "asc" },
         select: { id: true, text: true, rating: true, source: true },
       });
@@ -162,7 +162,7 @@ export async function POST(req: NextRequest) {
             const needEmbedding = await db.review.findMany({
               where: { projectId: ctx.project!.id, processingStatus: "completed", embedding: { is: null } },
               select: { id: true, text: true, title: true },
-              take: 50,
+              take: 500,
             });
             let embedded = 0;
             for (let i = 0; i < needEmbedding.length; i += 20) {

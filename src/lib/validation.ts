@@ -55,7 +55,7 @@ export const ingestSchema = z.object({
 });
 
 export const analyzeSchema = z.object({
-  limit: z.number().int().min(1).max(50).default(20),
+  limit: z.number().int().min(1).max(500).default(50),
 });
 
 export const chatSchema = z.object({
