@@ -72,7 +72,7 @@ export const chatSchema = z.object({
 });
 
 export const collectSchema = z.object({
-  sourceId: z.string().optional(),
+  sourceId: z.string().nullable().optional(),
 });
 
 export const createApiKeySchema = z.object({

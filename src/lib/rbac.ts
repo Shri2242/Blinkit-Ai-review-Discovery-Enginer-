@@ -34,7 +34,8 @@ export async function getAuthContext(projectId?: string): Promise<AuthContext> {
       if (apiAuthToken && token === apiAuthToken) {
         const firstProj = projectId 
           ? await db.project.findUnique({ where: { id: projectId } })
-          : await db.project.findFirst({ orderBy: { createdAt: "asc" } });
+          : (await db.project.findFirst({ where: { name: "Spotify — Music Discovery" } }))
+            || (await db.project.findFirst({ orderBy: { createdAt: "asc" } }));
         
         return {
           user: {
@@ -79,8 +80,12 @@ export async function getAuthContext(projectId?: string): Promise<AuthContext> {
       membership = { role: "admin" as Role };
     }
   } else {
-    // [DEMO MODE] Default to the first project in creation order and grant admin access.
-    const firstProj = await db.project.findFirst({ orderBy: { createdAt: "asc" } });
+    // [DEMO MODE] Try to find the default demo project "Spotify — Music Discovery" first,
+    // otherwise fallback to the first project in creation order.
+    let firstProj = await db.project.findFirst({ where: { name: "Spotify — Music Discovery" } });
+    if (!firstProj) {
+      firstProj = await db.project.findFirst({ orderBy: { createdAt: "asc" } });
+    }
     if (firstProj) {
       project = {
         id: firstProj.id,
