@@ -29,6 +29,7 @@ import {
   AlertTriangle,
   ArrowRight,
   Database,
+  RefreshCw,
 } from "lucide-react";
 import {
   StatCard,
@@ -67,11 +68,44 @@ export function OverviewView() {
   const [loading, setLoading] = useState(true);
   const setView = useApp((s) => s.setView);
   const activeProjectId = useApp((s) => s.activeProjectId);
+  const projects = useApp((s) => s.projects);
+  const setAuth = useApp((s) => s.setAuth);
+  const setActiveProject = useApp((s) => s.setActiveProject);
+  const [seeding, setSeeding] = useState(false);
   const { toast } = useToast();
+
+  const handleSeed = async () => {
+    setSeeding(true);
+    try {
+      const res = await api.seed();
+      toast({
+        title: "Database seeded successfully",
+        description: `Created default project and populated ${res.reviewsInserted} reviews.`,
+      });
+      const me = await api.me();
+      setAuth({ user: me.user, projects: me.projects });
+      if (me.projects.length > 0) {
+        setActiveProject(me.projects[0].id);
+      }
+      window.dispatchEvent(new Event("rp-refresh"));
+    } catch (e) {
+      toast({
+        title: "Seeding failed",
+        variant: "destructive",
+        description: e instanceof Error ? e.message : "Internal server error",
+      });
+    } finally {
+      setSeeding(false);
+    }
+  };
 
   useEffect(() => {
     let alive = true;
     const fetchData = async () => {
+      if (projects.length === 0) {
+        setLoading(false);
+        return;
+      }
       try {
         if (alive) setLoading(true);
         const data = await api.stats(activeProjectId);
@@ -185,6 +219,30 @@ export function OverviewView() {
           description="Real-time analysis of Spotify music-discovery feedback across all sources."
         />
         <LoadingBlock label="Loading overview…" />
+      </div>
+    );
+  }
+
+  if (projects.length === 0) {
+    return (
+      <div className="space-y-6">
+        <SectionHeader
+          title="Overview"
+          description="Real-time analysis of Spotify music-discovery feedback across all sources."
+        />
+        <div className="flex flex-col items-center justify-center p-8 border border-border/60 bg-card rounded-xl shadow-sm text-center max-w-xl mx-auto mt-12">
+          <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary mb-4">
+            <Database className="h-6 w-6" />
+          </div>
+          <h3 className="font-heading text-lg font-semibold text-foreground mb-2">Welcome to ReviewPulse</h3>
+          <p className="text-sm text-muted-foreground mb-6 max-w-sm">
+            Your database is currently empty. Seed the database with the demo dataset containing 105 pre-analyzed Spotify reviews to get started instantly.
+          </p>
+          <Button onClick={handleSeed} disabled={seeding} className="gap-2">
+            <RefreshCw className={`h-4 w-4 ${seeding ? "animate-spin" : ""}`} />
+            {seeding ? "Seeding database..." : "Seed demo database"}
+          </Button>
+        </div>
       </div>
     );
   }

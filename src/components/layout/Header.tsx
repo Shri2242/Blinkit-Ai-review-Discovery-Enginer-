@@ -132,7 +132,7 @@ export function Header({ onOpenLanding }: { onOpenLanding: () => void }) {
         </div>
 
         {/* Project selector */}
-        {projects.length > 0 && (
+        {projects.length > 0 ? (
           <div className="relative" ref={projRef}>
             <button
               onClick={() => setProjOpen((v) => !v)}
@@ -182,6 +182,14 @@ export function Header({ onOpenLanding }: { onOpenLanding: () => void }) {
               </div>
             )}
           </div>
+        ) : (
+          <Button
+            onClick={() => setNewProjOpen(true)}
+            className="flex items-center gap-1.5 text-xs h-8 bg-primary text-white hover:bg-primary/90"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Create Project
+          </Button>
         )}
 
         <button

@@ -11,7 +11,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -172,7 +172,7 @@ model ReviewEmbedding {
   project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   embeddingModel  String   @default("xenova/all-MiniLM-L6-v2")
   dimensions      Int      @default(384)
-  embedding       String   // JSON-encoded number[] vector
+  embedding       String   // JSON-encoded number[] vector. In production Postgres, this is a JSON string of the vector. Run prisma/add-pgvector.sql for native vector type.
   createdAt       DateTime @default(now())
 
   @@index([projectId])
