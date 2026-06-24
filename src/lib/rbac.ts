@@ -57,11 +57,33 @@ export async function getAuthContext(projectId?: string): Promise<AuthContext> {
   }
 
   const session = await getSession();
-  // [DEMO MODE] Fallback to demo user if no session is active.
+  const userId = session?.sub ?? "demo";
+  const email = session?.email ?? "demo@reviewpulse.dev";
+  const name = session?.name ?? "Demo User";
+
+  // [DEMO MODE] Ensure fallback demo user exists in the database to satisfy foreign keys
+  if (userId === "demo") {
+    try {
+      const exists = await db.user.findUnique({ where: { id: "demo" } });
+      if (!exists) {
+        await db.user.create({
+          data: {
+            id: "demo",
+            email: "demo@reviewpulse.dev",
+            name: "Demo User",
+            authProvider: "guest",
+          },
+        });
+      }
+    } catch (err) {
+      console.error("[rbac] failed to ensure demo user exists:", err);
+    }
+  }
+
   const user = {
-    id: session?.sub ?? "demo",
-    email: session?.email ?? "demo@reviewpulse.dev",
-    name: session?.name ?? "Demo User",
+    id: userId,
+    email,
+    name,
   };
 
   // If a projectId is provided, look up that project + the user's membership.
