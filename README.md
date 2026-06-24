@@ -129,3 +129,46 @@ bunx prisma db push
 bun run dev
 ```
 Open [http://localhost:3000](http://localhost:3000) to access the landing page and dashboard.
+
+---
+
+## Strategy: How to Enable Optional Features
+
+If you clone this project and want to migrate from the lightweight sandbox setup to a full production environment, follow these steps:
+
+### 1. Migrating to PostgreSQL + pgvector
+By default, the project uses SQLite. To switch:
+1. Open [prisma/schema.prisma](file:///Users/shri/Downloads/AI%20REVIWE%20PROJECT/prisma/schema.prisma) and change the database provider:
+   ```prisma
+   datasource db {
+     provider = "postgresql"
+     url      = env("DATABASE_URL")
+   }
+   ```
+2. Update the `ReviewEmbedding` model:
+   ```prisma
+   model ReviewEmbedding {
+     // ...
+     embedding Unsupported("VECTOR(384)")? // Use pgvector instead of String JSON
+     // ...
+   }
+   ```
+3. Set your production Postgres connection string under `DATABASE_URL` in `.env`.
+4. Run `bunx prisma db push` to synchronize the schema.
+
+### 2. Switching to DeepSeek LLM (Paid)
+If you prefer to run analysis and RAG with DeepSeek instead of the free Hugging Face API:
+1. Provide `DEEPSEEK_API_KEY` and optionally override `DEEPSEEK_BASE_URL` in your `.env`.
+2. The core AI wrapper in `src/lib/ai.ts` will automatically detect the presence of the key and route queries through DeepSeek instead of Hugging Face.
+
+### 3. Enabling Authentication Providers
+* **Google OAuth**: Register an application in Google Cloud Console, configure redirect URIs to `${YOUR_URL}/api/auth/google/callback`, and add `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` to `.env`.
+* **Phone Verification**: Set up a Firebase Project, retrieve service account credentials, and populate `FIREBASE_PROJECT_ID` and `FIREBASE_SERVICE_ACCOUNT` (escaped JSON string).
+
+### 4. Activating Communications (Email & SMS)
+* **SMS Verification**: Sign up for Twilio and set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and `TWILIO_PHONE_NUMBER`.
+* **Email Team Invites**: Sign up for Resend and set `RESEND_API_KEY` and `RESEND_FROM_EMAIL`. The system will automatically stop creating passwordless stub users and start sending invitation emails with sign-up links.
+
+### 5. Setting up Distributed Rate Limiting
+The middleware rate limiter operates in-memory. If deploying multiple app instances behind a load balancer, provide `REDIS_URL` in `.env`. The rate-limiting logic will automatically connect to your Redis instance to synchronize rate-limits across all app instances.
+
