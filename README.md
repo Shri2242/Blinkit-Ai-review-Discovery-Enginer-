@@ -165,6 +165,10 @@ git commit --amend --reset-author --no-edit
 git push origin main --force
 ```
 
+### 4. Automated Daily Scheduler & API Security
+- **Secure Machine-to-Machine Auth:** The `/api/collect`, `/api/analyze`, and `/api/embed` routes are secured using a service-account Bearer token check. Configure your `API_AUTH_TOKEN` in Vercel and GitHub Secrets, and it will authenticate automatically as `Service Account` with full access to target your default demo project workspace (`Spotify — Music Discovery`).
+- **Hobby-tier Timeout Prevention:** Vercel Hobby plan has a strict 10-second serverless execution limit. By default, collecting reviews will try to run LLM analysis and embeddings synchronously. To prevent timeouts, the cron pipeline runs `/api/collect` with `"skipAutoProcess": true`, making it return instantly. The subsequent analysis and embedding updates are executed sequentially in isolated, batched steps (`/api/analyze` and `/api/embed`).
+
 ---
 
 ## Strategy: How to Enable Optional Features
