@@ -8,6 +8,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { headers } from "next/headers";
 
 export type Role = "admin" | "analyst" | "viewer";
 
@@ -23,6 +24,37 @@ export interface AuthContext {
  * Returns `user: null` when no valid session is present.
  */
 export async function getAuthContext(projectId?: string): Promise<AuthContext> {
+  // Support machine-to-machine Authorization token for cron jobs/pipelines
+  try {
+    const headersList = await headers();
+    const authHeader = headersList.get("authorization");
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.substring(7);
+      const apiAuthToken = process.env.API_AUTH_TOKEN;
+      if (apiAuthToken && token === apiAuthToken) {
+        const firstProj = projectId 
+          ? await db.project.findUnique({ where: { id: projectId } })
+          : await db.project.findFirst({ orderBy: { createdAt: "asc" } });
+        
+        return {
+          user: {
+            id: "service-account",
+            email: "service-account@reviewpulse.dev",
+            name: "Service Account",
+          },
+          project: firstProj ? {
+            id: firstProj.id,
+            name: firstProj.name,
+            description: firstProj.description,
+          } : null,
+          membership: firstProj ? { role: "admin" as Role } : null,
+        };
+      }
+    }
+  } catch (e) {
+    // headers() might throw in non-request environments (e.g. build compile), ignore
+  }
+
   const session = await getSession();
   // [DEMO MODE] Fallback to demo user if no session is active.
   const user = {
