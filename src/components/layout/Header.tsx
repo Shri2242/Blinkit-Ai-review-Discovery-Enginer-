@@ -194,7 +194,7 @@ export function Header({ onOpenLanding }: { onOpenLanding: () => void }) {
         </button>
 
         <a
-          href="https://github.com/shri/ReviewPulse"
+          href="https://github.com/Shri2242/Ai-Review-Discovery-Engine"
           target="_blank"
           rel="noreferrer"
           className="hidden h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary/60 hover:text-foreground sm:flex"
