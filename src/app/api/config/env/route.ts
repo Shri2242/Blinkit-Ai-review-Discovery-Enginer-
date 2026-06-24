@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { errorResponse } from "@/lib/rbac";
 import { isTwilioConfigured, isResendConfigured, isFirebaseConfigured } from "@/lib/notifications";
 import { isDeepSeekConfigured } from "@/lib/deepseek";
+import { isHuggingFaceConfigured, getHuggingFaceModel } from "@/lib/huggingface";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,13 @@ export async function GET() {
       },
       jwtSecret: { configured: has(process.env.JWT_SECRET) },
       ai: {
+        huggingface: {
+          configured: isHuggingFaceConfigured(),
+          model: getHuggingFaceModel(),
+          note: isHuggingFaceConfigured()
+            ? "FREE Hugging Face Inference API active (priority #1)."
+            : "Set HUGGINGFACE_API_KEY (free at https://huggingface.co/settings/tokens) to enable FREE LLM inference.",
+        },
         deepseek: { configured: isDeepSeekConfigured(), baseUrl: process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com" },
         zai: { configured: true, note: "Always available as the sandbox LLM fallback." },
       },

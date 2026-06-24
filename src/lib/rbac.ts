@@ -17,47 +17,45 @@ export interface AuthContext {
   membership: { role: Role } | null;
 }
 
+
 /**
  * Resolve the authenticated user + their first project (or a specified one).
  * Returns `user: null` when no valid session is present.
  */
 export async function getAuthContext(projectId?: string): Promise<AuthContext> {
   const session = await getSession();
-  if (!session) return { user: null, project: null, membership: null };
-
-  const user = { id: session.sub, email: session.email, name: session.name };
+  // [DEMO MODE] Fallback to demo user if no session is active.
+  const user = {
+    id: session?.sub ?? "demo",
+    email: session?.email ?? "demo@reviewpulse.dev",
+    name: session?.name ?? "Demo User",
+  };
 
   // If a projectId is provided, look up that project + the user's membership.
   let project: AuthContext["project"] = null;
   let membership: AuthContext["membership"] = null;
 
   if (projectId) {
-    const mem = await db.projectMember.findUnique({
-      where: { projectId_userId: { projectId, userId: user.id } },
-      include: { project: true },
-    });
-    if (mem) {
+    // [DEMO MODE] Bypass membership check: anyone can access any project as admin
+    const proj = await db.project.findUnique({ where: { id: projectId } });
+    if (proj) {
       project = {
-        id: mem.project.id,
-        name: mem.project.name,
-        description: mem.project.description,
+        id: proj.id,
+        name: proj.name,
+        description: proj.description,
       };
-      membership = { role: mem.role as Role };
+      membership = { role: "admin" as Role };
     }
   } else {
-    // Default to the user's first project (by creation order).
-    const mem = await db.projectMember.findFirst({
-      where: { userId: user.id },
-      include: { project: true },
-      orderBy: { createdAt: "asc" },
-    });
-    if (mem) {
+    // [DEMO MODE] Default to the first project in creation order and grant admin access.
+    const firstProj = await db.project.findFirst({ orderBy: { createdAt: "asc" } });
+    if (firstProj) {
       project = {
-        id: mem.project.id,
-        name: mem.project.name,
-        description: mem.project.description,
+        id: firstProj.id,
+        name: firstProj.name,
+        description: firstProj.description,
       };
-      membership = { role: mem.role as Role };
+      membership = { role: "admin" as Role };
     }
   }
 
@@ -141,7 +139,7 @@ export async function logActivity(
         userId,
         action,
         projectId: projectId ?? null,
-        metadata: metadata ? JSON.stringify(metadata) : null,
+        details: metadata ? JSON.stringify(metadata) : null,
       },
     });
   } catch {

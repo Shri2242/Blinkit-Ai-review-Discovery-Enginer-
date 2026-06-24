@@ -41,8 +41,9 @@ export function InsightsView() {
 
   useEffect(() => {
     let alive = true;
-    (async () => {
+    const fetchData = async () => {
       try {
+        if (alive) setLoading(true);
         const data = await api.insights(activeProjectId);
         if (alive) setInsights(data);
       } catch (e) {
@@ -51,9 +52,18 @@ export function InsightsView() {
       } finally {
         if (alive) setLoading(false);
       }
-    })();
+    };
+
+    fetchData();
+
+    const handleRefresh = () => {
+      fetchData();
+    };
+
+    window.addEventListener("rp-refresh", handleRefresh);
     return () => {
       alive = false;
+      window.removeEventListener("rp-refresh", handleRefresh);
     };
   }, [activeProjectId]);
 

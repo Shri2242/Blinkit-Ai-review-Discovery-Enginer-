@@ -3,15 +3,14 @@
 import { useEffect } from "react";
 import { useApp } from "@/store/app";
 import { api } from "@/lib/api";
+import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { Landing } from "@/components/landing/Landing";
 import { AuthView } from "@/components/auth/AuthView";
-import { DashboardShell } from "@/components/dashboard/DashboardShell";
 
 export default function Home() {
-  const { view, user, authReady, setAuth, setView } = useApp();
+  const { view, authReady, setAuth } = useApp();
 
-  // On first load: check the session. If authenticated, load the user + projects.
-  // If not authenticated, do NOT auto-seed — the user must log in or register first.
+  // On first load: check the session (which returns the demo user + project)
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -42,12 +41,17 @@ export default function Home() {
     );
   }
 
-  if (view === "landing" && !user) return <Landing />;
-  if (view === "login") return <AuthView mode="login" />;
-  if (view === "register") return <AuthView mode="register" />;
-  if (!user) {
-    // Any dashboard view requested without auth → show login.
+  // Render components conditionally based on active view state
+  if (view === "landing") {
+    return <Landing />;
+  }
+  if (view === "login") {
     return <AuthView mode="login" />;
   }
+  if (view === "register") {
+    return <AuthView mode="register" />;
+  }
+
   return <DashboardShell />;
 }
+

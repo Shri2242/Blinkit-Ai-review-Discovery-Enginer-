@@ -12,18 +12,17 @@ export async function GET() {
     if (!ctx.user) {
       return Response.json({ error: "Authentication required" }, { status: 401 });
     }
-    const memberships = await db.projectMember.findMany({
-      where: { userId: ctx.user.id },
-      include: { project: true },
+    // Demo Mode: return all projects in the database
+    const projects = await db.project.findMany({
       orderBy: { createdAt: "asc" },
     });
     return Response.json({
-      projects: memberships.map((m) => ({
-        id: m.project.id,
-        name: m.project.name,
-        description: m.project.description,
-        role: m.role,
-        createdAt: m.project.createdAt.toISOString(),
+      projects: projects.map((p) => ({
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        role: "admin",
+        createdAt: p.createdAt.toISOString(),
       })),
     });
   } catch (err) {

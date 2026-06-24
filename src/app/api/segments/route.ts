@@ -55,18 +55,18 @@ export async function GET(req: NextRequest) {
   };
 
   for (const r of all) {
-    const bk = bucketKey(r.rating);
+    const bk = bucketKey(r.rating ?? 3);
     const rb = ratingBuckets[bk];
     rb.count++;
-    if (r.sentiment) (rb as Record<string, number>)[r.sentiment as string]++;
+    if (r.sentiment) (rb as any)[r.sentiment as string]++;
     if (r.isBug) rb.bugs++;
     if (r.isFeatureRequest) rb.features++;
 
     // source
     const s = sourceMap.get(r.source) || { source: r.source, count: 0, positive: 0, negative: 0, neutral: 0, mixed: 0, avgRating: 0, ratingSum: 0 };
     s.count++;
-    s.ratingSum += r.rating;
-    if (r.sentiment) (s as Record<string, number>)[r.sentiment as string]++;
+    s.ratingSum += r.rating ?? 3;
+    if (r.sentiment) (s as any)[r.sentiment as string]++;
     sourceMap.set(r.source, s);
 
     // sentiment
@@ -75,15 +75,15 @@ export async function GET(req: NextRequest) {
     sm.count++;
     if (r.isBug) sm.bugs++;
     if (r.isFeatureRequest) sm.features++;
-    if (r.priority) (sm as Record<string, number>)[r.priority as string]++;
+    if (r.priority) (sm as any)[r.priority as string]++;
     sentimentMap.set(sentimentKey, sm);
 
     // theme
     const themeKey = r.theme || "unknown";
     const tm = themeMap.get(themeKey) || { theme: themeKey, count: 0, positive: 0, negative: 0, neutral: 0, mixed: 0, critical: 0, high: 0, medium: 0, low: 0 };
     tm.count++;
-    if (r.sentiment) (tm as Record<string, number>)[r.sentiment as string]++;
-    if (r.priority) (tm as Record<string, number>)[r.priority as string]++;
+    if (r.sentiment) (tm as any)[r.sentiment as string]++;
+    if (r.priority) (tm as any)[r.priority as string]++;
     themeMap.set(themeKey, tm);
 
     // cross
@@ -115,7 +115,11 @@ export async function GET(req: NextRequest) {
       .slice(0, 10),
     themeBySource: Array.from(themeBySourceMap.entries())
       .map(([theme, row]) => ({ theme, ...row }))
-      .sort((a, b) => Object.values(b).reduce((x, y) => x + (y as number), 0) - Object.values(a).reduce((x, y) => x + (y as number), 0))
+      .sort((a, b) => {
+        const sumVal = (obj: any) =>
+          Object.entries(obj).reduce((acc, [k, v]) => (k === "theme" ? acc : acc + (v as number)), 0);
+        return sumVal(b) - sumVal(a);
+      })
       .slice(0, 10),
     total: all.length,
   });

@@ -146,7 +146,7 @@ export async function collectReviews(
       const gplay = (await import("google-play-scraper")).default;
       const appId = (config.appId as string) || "com.spotify.music";
       const lang = (config.lang as string) || "en";
-      const reviews = await gplay.reviews({ appId, lang, sort: gplay.sort.NEWEST, num: 50 });
+      const reviews = await gplay.reviews({ appId, lang, sort: (gplay.sort as any).NEWEST, num: 50 });
       const fetched: FetchedReview[] = (reviews.data || []).map((r: { text?: string; score?: number; title?: string; date?: string; userName?: string; id?: string }) => ({
         text: r.text || r.title || "",
         title: r.title || null,
@@ -165,7 +165,6 @@ export async function collectReviews(
 
   if (sourceType === "app_store") {
     try {
-      // @ts-expect-error No type definitions for app-store-scraper
       const store = (await import("app-store-scraper")).default;
       const appId = (config.appId as string) || "324684580";
       const country = (config.country as string) || "us";

@@ -235,8 +235,9 @@ export function SegmentsView() {
 
   useEffect(() => {
     let alive = true;
-    (async () => {
+    const fetchData = async () => {
       try {
+        if (alive) setLoading(true);
         const d = await api.segments(activeProjectId);
         if (alive) setData(d);
       } catch (e) {
@@ -245,9 +246,18 @@ export function SegmentsView() {
       } finally {
         if (alive) setLoading(false);
       }
-    })();
+    };
+
+    fetchData();
+
+    const handleRefresh = () => {
+      fetchData();
+    };
+
+    window.addEventListener("rp-refresh", handleRefresh);
     return () => {
       alive = false;
+      window.removeEventListener("rp-refresh", handleRefresh);
     };
   }, [activeProjectId]);
 

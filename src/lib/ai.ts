@@ -1,8 +1,10 @@
 /**
  * ReviewPulse — AI analysis library (server-only).
  *
- * LLM provider: prefers DeepSeek (when DEEPSEEK_API_KEY is set), falls back to
- * z-ai-web-dev-sdk (the sandbox default). Both produce real completions.
+ * LLM provider priority:
+ *   1. Hugging Face (FREE — when HUGGINGFACE_API_KEY is set)
+ *   2. DeepSeek (when DEEPSEEK_API_KEY is set)
+ *   3. z-ai-web-dev-sdk (sandbox default — always available)
  *
  * Retrieval: real 384-dim neural embeddings via @xenova/transformers + cosine
  * similarity (see embeddings.ts). Falls back to keyword TF-IDF if the model
@@ -11,6 +13,7 @@
 import "server-only";
 import ZAI from "z-ai-web-dev-sdk";
 import { isDeepSeekConfigured, deepseekChat } from "./deepseek";
+import { isHuggingFaceConfigured, getHuggingFaceModel, huggingfaceChat } from "./huggingface";
 
 export type Sentiment = "positive" | "negative" | "neutral" | "mixed";
 export type Priority = "critical" | "high" | "medium" | "low";
@@ -107,22 +110,43 @@ async function getZai() {
 interface LLMMessage { role: string; content: string }
 
 /**
- * Unified LLM call. Prefers DeepSeek when DEEPSEEK_API_KEY is configured;
- * falls back to z-ai-web-dev-sdk. Returns the assistant content string.
+ * Unified LLM call. Provider priority:
+ *   1. Hugging Face (FREE) — when HUGGINGFACE_API_KEY is set
+ *   2. DeepSeek — when DEEPSEEK_API_KEY is set
+ *   3. z-ai-web-dev-sdk — sandbox default, always available
+ *
+ * Returns the assistant content string.
  * Throws on failure (callers catch and fall back to heuristics).
  */
 export async function callLLM(messages: LLMMessage[]): Promise<{ content: string; provider: string }> {
-  if (isDeepSeekConfigured()) {
+  // Priority #1: Hugging Face (free tier, no payment needed)
+  if (isHuggingFaceConfigured()) {
     try {
-      const result = await deepseekChat(
+      const result = await huggingfaceChat(
         messages.map((m) => ({ role: m.role as "system" | "user" | "assistant", content: m.content })),
         { temperature: 0.2 },
       );
-      return { content: result.content, provider: `deepseek (${result.model})` };
+      return { content: result.content, provider: `huggingface (${result.model})` };
     } catch (err) {
-      console.warn("[ai] DeepSeek call failed, falling back to z-ai SDK:", err);
+      console.warn("[ai] Hugging Face call failed, falling back to DeepSeek or z-ai SDK:", err);
     }
   }
+
+  // Priority #2: DeepSeek
+  // [DEMO MODE] DeepSeek commented out — re-enable for production
+  // if (isDeepSeekConfigured()) {
+  //   try {
+  //     const result = await deepseekChat(
+  //       messages.map((m) => ({ role: m.role as "system" | "user" | "assistant", content: m.content })),
+  //       { temperature: 0.2 },
+  //     );
+  //     return { content: result.content, provider: `deepseek (${result.model})` };
+  //   } catch (err) {
+  //     console.warn("[ai] DeepSeek call failed, falling back to z-ai SDK:", err);
+  //   }
+  // }
+
+  // Priority #3: z-ai-web-dev-sdk (sandbox fallback, always available)
   const zai = (await getZai()) as {
     chat: {
       completions: {
@@ -143,7 +167,13 @@ export async function callLLM(messages: LLMMessage[]): Promise<{ content: string
 
 /** Which LLM provider is active (for display in the UI). */
 export function activeLLMProvider(): string {
-  return isDeepSeekConfigured() ? "DeepSeek (deepseek-chat)" : "z-ai-web-dev-sdk (DeepSeek-equivalent fallback)";
+  if (isHuggingFaceConfigured()) {
+    return `Hugging Face (${getHuggingFaceModel()}) — FREE`;
+  }
+  if (isDeepSeekConfigured()) {
+    return "DeepSeek (deepseek-chat)";
+  }
+  return "z-ai-web-dev-sdk (sandbox fallback)";
 }
 
 /** Strip markdown code fences and extract the first JSON array from a model response. */

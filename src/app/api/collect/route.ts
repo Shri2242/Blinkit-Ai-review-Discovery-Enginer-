@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "No matching collector sources found." }, { status: 404 });
     }
 
-    const results = [];
+    const results: any[] = [];
     for (const source of sources) {
       const startedAt = new Date();
       const start = Date.now();
@@ -117,25 +117,24 @@ export async function POST(req: NextRequest) {
 
     await logActivity(ctx.user.id, "collect.run", ctx.project!.id, { count: results.length });
 
-    // Auto-trigger AI analysis on newly-collected reviews (if any were inserted).
+    // Auto-trigger AI analysis on newly-collected reviews or any pending reviews in the project.
     const totalNew = results.reduce((sum, r) => sum + (r.new ?? 0), 0);
-    let analysisResult = null;
-    let embeddingResult = null;
-    if (totalNew > 0) {
-      try {
-        const { analyzeReviews } = await import("@/lib/ai");
-        const unprocessed = await db.review.findMany({
-          where: { projectId: ctx.project!.id, processingStatus: "pending" },
-          take: 50,
-          orderBy: { createdAt: "asc" },
-          select: { id: true, text: true, rating: true, source: true },
-        });
-        if (unprocessed.length > 0) {
+    let analysisResult: { processed: number } | null = null;
+    let embeddingResult: { embedded: number } | null = null;
+    try {
+      const { analyzeReviews } = await import("@/lib/ai");
+      const unprocessed = await db.review.findMany({
+        where: { projectId: ctx.project!.id, processingStatus: "pending" },
+        take: 50,
+        orderBy: { createdAt: "asc" },
+        select: { id: true, text: true, rating: true, source: true },
+      });
+      if (unprocessed.length > 0) {
           const BATCH = 8;
           let processedCount = 0;
           for (let i = 0; i < unprocessed.length; i += BATCH) {
             const batch = unprocessed.slice(i, i + BATCH);
-            const aiResults = await analyzeReviews(batch.map((r) => ({ id: r.id, text: r.text, rating: r.rating, source: r.source })));
+            const aiResults = await analyzeReviews(batch.map((r) => ({ id: r.id, text: r.text, rating: r.rating ?? 3, source: r.source })));
             for (let j = 0; j < batch.length; j++) {
               const r = batch[j];
               const a = aiResults[j];
@@ -188,7 +187,6 @@ export async function POST(req: NextRequest) {
       } catch (analyzeErr) {
         console.error("[collect] auto-analyze failed:", analyzeErr);
       }
-    }
 
     return NextResponse.json({ ok: true, results, totalNew, analysis: analysisResult, embeddings: embeddingResult });
   } catch (err) {

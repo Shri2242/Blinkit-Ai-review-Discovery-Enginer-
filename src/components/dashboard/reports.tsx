@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useApp } from "@/store/app";
 import { SectionHeader, ChartCard, LoadingBlock, EmptyState } from "@/components/dashboard/shared";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
@@ -16,6 +17,7 @@ interface Report {
 }
 
 export function ReportsView() {
+  const activeProjectId = useApp((s) => s.activeProjectId);
   const [insights, setInsights] = useState<Insights | null>(null);
   const [loading, setLoading] = useState(true);
   const [reports, setReports] = useState<Report[]>([]);
@@ -25,7 +27,8 @@ export function ReportsView() {
     let alive = true;
     (async () => {
       try {
-        const data = await api.insights();
+        setLoading(true);
+        const data = await api.insights(activeProjectId);
         if (alive) setInsights(data);
       } catch (e) {
         console.error(e);
@@ -36,7 +39,7 @@ export function ReportsView() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [activeProjectId]);
 
   const generateWeekly = () => {
     if (!insights) return;

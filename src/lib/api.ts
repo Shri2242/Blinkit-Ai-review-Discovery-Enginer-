@@ -72,6 +72,10 @@ export const api = {
   listProjects: () => jsonFetch<{ projects: AuthProject[] }>("/api/projects"),
   createProject: (data: { name: string; description?: string }) =>
     jsonFetch<{ ok: boolean; project: AuthProject }>("/api/projects", { method: "POST", body: JSON.stringify(data) }),
+  updateProject: (id: string, data: { name?: string; description?: string | null }) =>
+    jsonFetch<{ ok: boolean; project: AuthProject }>(`/api/projects/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteProject: (id: string) =>
+    jsonFetch<{ ok: boolean }>(`/api/projects/${id}`, { method: "DELETE" }),
 
   /* ---- Seed (dev) ---- */
   seedStatus: () => jsonFetch<{ seeded: boolean; projectCount: number; reviewCount: number; sourceCount: number; userCount: number; embeddingCount: number }>("/api/seed"),
@@ -96,7 +100,13 @@ export const api = {
   createSource: (data: { sourceType: string; name: string; config: Record<string, unknown>; schedule?: string }, projectId?: string | null) =>
     jsonFetch<{ ok: boolean; source: { id: string } }>(withProject("/api/sources", projectId), { method: "POST", body: JSON.stringify(data) }),
   collect: (sourceId?: string, projectId?: string | null) =>
-    jsonFetch<{ ok: boolean; results: { sourceId: string; name: string; fetched?: number; new?: number; duplicate?: number; real?: boolean; error?: string }[] }>(withProject("/api/collect", projectId), { method: "POST", body: JSON.stringify({ sourceId }) }),
+    jsonFetch<{
+      ok: boolean;
+      results: { sourceId: string; name: string; fetched?: number; new?: number; duplicate?: number; real?: boolean; error?: string }[];
+      totalNew?: number;
+      analysis?: { processed: number } | null;
+      embeddings?: { embedded: number } | null;
+    }>(withProject("/api/collect", projectId), { method: "POST", body: JSON.stringify({ sourceId }) }),
 
   ingest: (content: string, format: "csv" | "json", projectId?: string | null) =>
     jsonFetch<{ ok: boolean; inserted: number; skipped: number; errors: number; errorSamples: string[]; totalRows: number }>(withProject("/api/ingest", projectId), { method: "POST", body: JSON.stringify({ content, format }) }),

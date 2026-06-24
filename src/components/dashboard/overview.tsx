@@ -28,6 +28,7 @@ import {
   Lightbulb,
   AlertTriangle,
   ArrowRight,
+  Database,
 } from "lucide-react";
 import {
   StatCard,
@@ -40,6 +41,7 @@ import { api, SOURCE_LABELS, themeLabel } from "@/lib/api";
 import type { Stats } from "@/lib/types";
 import { useApp } from "@/store/app";
 import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
 
 /* ---------------- Shared chart styling ---------------- */
 const SOURCE_PALETTE = [
@@ -69,8 +71,9 @@ export function OverviewView() {
 
   useEffect(() => {
     let alive = true;
-    (async () => {
+    const fetchData = async () => {
       try {
+        if (alive) setLoading(true);
         const data = await api.stats(activeProjectId);
         if (alive) setStats(data);
       } catch (e) {
@@ -84,9 +87,18 @@ export function OverviewView() {
       } finally {
         if (alive) setLoading(false);
       }
-    })();
+    };
+
+    fetchData();
+
+    const handleRefresh = () => {
+      fetchData();
+    };
+
+    window.addEventListener("rp-refresh", handleRefresh);
     return () => {
       alive = false;
+      window.removeEventListener("rp-refresh", handleRefresh);
     };
   }, [toast, activeProjectId]);
 
@@ -189,6 +201,30 @@ export function OverviewView() {
           title="No data available"
           description="Seed the database to populate the overview dashboard."
         />
+      </div>
+    );
+  }
+
+  if (stats.totals.total === 0) {
+    return (
+      <div className="space-y-6">
+        <SectionHeader
+          title="Overview"
+          description="Real-time analysis of Spotify music-discovery feedback across all sources."
+        />
+        <div className="flex flex-col items-center justify-center p-8 border border-border/60 bg-card rounded-xl shadow-sm text-center max-w-xl mx-auto mt-8">
+          <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary mb-4">
+            <Database className="h-6 w-6" />
+          </div>
+          <h3 className="font-heading text-lg font-semibold text-foreground mb-2">No reviews yet</h3>
+          <p className="text-sm text-muted-foreground mb-6 max-w-sm">
+            No reviews yet in this project. Go to Sources to pull reviews.
+          </p>
+          <Button onClick={() => setView("sources")} className="gap-2 bg-primary text-white hover:bg-primary/90">
+            Go to Sources
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
     );
   }

@@ -34,7 +34,7 @@ export async function POST(req: Request) {
     for (let i = 0; i < unprocessed.length; i += BATCH) {
       const batch = unprocessed.slice(i, i + BATCH);
       const results = await analyzeReviews(
-        batch.map((r) => ({ id: r.id, text: r.text, rating: r.rating, source: r.source })),
+        batch.map((r) => ({ id: r.id, text: r.text, rating: r.rating ?? 3, source: r.source })),
       );
       for (let j = 0; j < batch.length; j++) {
         const r = batch[j];

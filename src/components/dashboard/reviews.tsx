@@ -12,6 +12,7 @@ import {
   MessageSquare,
   Quote,
   Filter,
+  Download,
 } from "lucide-react";
 
 import {
@@ -91,6 +92,26 @@ const DEFAULT_FILTERS: Filters = {
   isBug: false,
   isFeatureRequest: false,
 };
+
+const PRESETS = [
+  { name: "All", filters: DEFAULT_FILTERS },
+  { name: "Critical Bugs", filters: { ...DEFAULT_FILTERS, priority: "critical", isBug: true } },
+  { name: "Feature Requests", filters: { ...DEFAULT_FILTERS, isFeatureRequest: true } },
+  { name: "Negative Reviews", filters: { ...DEFAULT_FILTERS, sentiment: "negative" } },
+  { name: "5-Star Reviews", filters: { ...DEFAULT_FILTERS, rating: "5" } },
+];
+
+function filtersMatch(a: Filters, b: Filters): boolean {
+  return (
+    a.sentiment === b.sentiment &&
+    a.source === b.source &&
+    a.theme === b.theme &&
+    a.priority === b.priority &&
+    a.rating === b.rating &&
+    a.isBug === b.isBug &&
+    a.isFeatureRequest === b.isFeatureRequest
+  );
+}
 
 function countActiveFilters(f: Filters): number {
   let n = 0;
@@ -578,33 +599,43 @@ export function ReviewsView() {
   // Mobile filters dialog
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
-  /* Fetch reviews whenever filters change */
-  useEffect(() => {
-    let alive = true;
+  const fetchReviews = useCallback(async (alive: boolean) => {
     setLoading(true);
-    api
-      .reviews(filtersToParams(filters), activeProjectId)
-      .then((data) => {
-        if (!alive) return;
+    try {
+      const data = await api.reviews(filtersToParams(filters), activeProjectId);
+      if (alive) {
         setReviews(data.reviews);
         setTotal(data.total);
-      })
-      .catch((e: unknown) => {
-        if (!alive) return;
+      }
+    } catch (e: unknown) {
+      if (alive) {
         const msg = e instanceof Error ? e.message : String(e);
         toast({
           title: "Failed to load reviews",
           description: msg,
           variant: "destructive",
         });
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
+      }
+    } finally {
+      if (alive) setLoading(false);
+    }
+  }, [filters, activeProjectId, toast]);
+
+  /* Fetch reviews whenever filters change */
+  useEffect(() => {
+    let alive = true;
+    fetchReviews(alive);
+
+    const handleRefresh = () => {
+      fetchReviews(alive);
+    };
+
+    window.addEventListener("rp-refresh", handleRefresh);
     return () => {
       alive = false;
+      window.removeEventListener("rp-refresh", handleRefresh);
     };
-  }, [filters, activeProjectId]);
+  }, [fetchReviews, activeProjectId]);
 
   const askAI = useCallback(
     async (q: string) => {
@@ -661,6 +692,42 @@ export function ReviewsView() {
   const handleClearFilters = useCallback(() => {
     setFilters(DEFAULT_FILTERS);
   }, []);
+
+  const handleExportCSV = (reviewsToExport: Review[]) => {
+    try {
+      const headers = ["Date", "Source", "Author", "Rating", "Sentiment", "Theme", "Priority", "Title", "Text"];
+      const rows = reviewsToExport.map(r => [
+        r.reviewDate.slice(0, 10),
+        r.source,
+        `"${(r.author || "").replace(/"/g, '""')}"`,
+        r.rating,
+        r.sentiment || "",
+        r.theme || "",
+        r.priority || "",
+        `"${(r.title || "").replace(/"/g, '""')}"`,
+        `"${(r.text || "").replace(/"/g, '""').replace(/\n/g, ' ')}"`
+      ]);
+      const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `reviewpulse-reviews-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "Export Successful",
+        description: `Exported ${reviewsToExport.length} reviews to CSV`,
+      });
+    } catch (e) {
+      toast({
+        title: "Export Failed",
+        variant: "destructive",
+        description: e instanceof Error ? e.message : "Could not export reviews",
+      });
+    }
+  };
 
   const visibleReviews = useMemo(() => {
     if (showCitedOnly && citedIds.size > 0) {
@@ -746,6 +813,27 @@ export function ReviewsView() {
 
         {/* Review list column */}
         <div className="min-w-0 space-y-4">
+          {/* Quick filter presets */}
+          <div className="flex flex-wrap items-center gap-1.5 border-b border-border/40 pb-3">
+            {PRESETS.map((p) => {
+              const active = filtersMatch(filters, p.filters);
+              return (
+                <button
+                  key={p.name}
+                  type="button"
+                  onClick={() => setFilters(p.filters)}
+                  className={cn(
+                    "rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors border",
+                    active
+                      ? "bg-primary border-primary text-primary-foreground shadow-sm shadow-primary/15"
+                      : "bg-secondary/40 border-border/60 text-muted-foreground hover:bg-secondary/70 hover:text-foreground"
+                  )}
+                >
+                  {p.name}
+                </button>
+              );
+            })}
+          </div>
           {/* Mobile filters trigger */}
           <div className="flex items-center justify-between lg:hidden">
             <Dialog open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
@@ -798,27 +886,34 @@ export function ReviewsView() {
               <span className="font-semibold text-foreground">{total}</span>
               {" "}reviews
               {activeCount > 0 && (
-                <Button
-                  variant="link"
-                  size="sm"
-                  className="ml-2 h-auto p-0 text-xs text-primary"
-                  onClick={handleClearFilters}
-                >
-                  clear filters
-                </Button>
+                <span className="ml-1 text-xs">
+                  (filtered)
+                </span>
               )}
             </p>
-            {showCitedOnly && citedIds.size > 0 && (
+            <div className="flex items-center gap-2">
+              {showCitedOnly && citedIds.size > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5 text-xs"
+                  onClick={() => setShowCitedOnly(false)}
+                >
+                  <X className="h-3 w-3" />
+                  Exit cited-only view
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 gap-1.5 text-xs"
-                onClick={() => setShowCitedOnly(false)}
+                onClick={() => handleExportCSV(visibleReviews)}
+                disabled={visibleReviews.length === 0}
+                className="gap-1.5 h-8 text-xs border-border/60 hover:bg-secondary/60 shrink-0"
               >
-                <X className="h-3 w-3" />
-                Exit cited-only view
+                <Download className="h-3.5 w-3.5" />
+                <span>Export CSV</span>
               </Button>
-            )}
+            </div>
           </div>
 
           {/* Loading / empty / list */}

@@ -126,6 +126,25 @@ real 384-dim embeddings — zero per-call cost, zero data egress.
 
 ---
 
+## Graduation Demo Mode Improvements
+
+The project has been enhanced with several interactive demo and UX features to showcase all functionality seamlessly without friction:
+
+1. **Restored Landing Page & Auth Bypass**:
+   - The app launches to the default Landing Page.
+   - Users can bypass authentication constraints by clicking "Explore the live demo" or "Launch dashboard", which enters guest overview/chat modes instantly.
+2. **Project Switcher & Layout Improvements**:
+   - Resolved layout overlap bugs by raising the header's stacking context (`z-50`).
+   - Project list dropdown is now scrollable (`max-h-[300px] overflow-y-auto`) to support an arbitrary number of projects without overflowing the viewport.
+3. **Frictionless Project Deletion**:
+   - Bypassed strict project membership validation during deletion to permit deleting projects created in previous guest sessions without encountering `403 Forbidden` errors.
+4. **Reliable Dashboard Synchronization**:
+   - Dashboard tabs (`overview`, `segments`, `insights`) now correctly trigger a loading state when switching projects, ensuring stats and graphs reflect the newly selected project's reviews rather than stale cached data.
+5. **On-Demand AI Analysis Sync**:
+   - Modified `/api/collect` synchronization pipeline to unconditionally run AI analysis for any remaining `"pending"` reviews, ensuring reviews are fully populated and analyzed immediately after collection.
+
+---
+
 ## Honest notes: sandbox vs production
 
 This repo runs in a constrained sandbox that forces a few deliberate

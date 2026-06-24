@@ -44,7 +44,7 @@ export const updateRoleSchema = z.object({
 export const createSourceSchema = z.object({
   sourceType: z.enum(["google_play", "app_store", "reddit", "twitter"]),
   name: z.string().min(1).max(255),
-  config: z.record(z.unknown()).default({}),
+  config: z.record(z.string(), z.unknown()).default({}),
   schedule: z.string().max(120).default("0 9 * * *"),
   enabled: z.boolean().default(true),
 });

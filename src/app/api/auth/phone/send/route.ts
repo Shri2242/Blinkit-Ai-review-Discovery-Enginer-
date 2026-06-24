@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse } from "@/lib/rbac";
-import { setOtp } from "@/lib/otp-store";
-import { sendSms, isTwilioConfigured } from "@/lib/notifications";
+// [DEMO MODE] Twilio imports commented out
+// import { setOtp } from "@/lib/otp-store";
+// import { sendSms, isTwilioConfigured } from "@/lib/notifications";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -11,8 +12,7 @@ const phoneSchema = z.object({
 });
 
 // POST /api/auth/phone/send — generate + send an OTP via real Twilio SMS.
-// When TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN + TWILIO_PHONE_NUMBER are set,
-// a real SMS is sent. Otherwise dev mode returns the code in the response.
+// [DEMO MODE] SMS disabled.
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -20,33 +20,21 @@ export async function POST(req: NextRequest) {
     if (!parsed.success) return errorResponse(parsed.error);
     const { phone } = parsed.data;
 
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    setOtp(phone, code);
+    // [DEMO MODE] Original Twilio implementation:
+    // const code = String(Math.floor(100000 + Math.random() * 900000));
+    // setOtp(phone, code);
+    // if (isTwilioConfigured()) { await sendSms(...) }
 
-    const twilioConfigured = isTwilioConfigured();
-    if (twilioConfigured) {
-      const result = await sendSms(phone, `Your ReviewPulse verification code is: ${code}. It expires in 5 minutes.`);
-      if (result.sent) {
-        return NextResponse.json({ ok: true, sent: true, devMode: false, expiresIn: 300 });
-      }
-      // SMS failed but we still have the code in the store — return dev code as fallback.
-      return NextResponse.json({
-        ok: true, sent: false, devMode: true, devCode: code,
-        hint: `Twilio send failed: ${result.error}. Using dev mode instead.`,
-        expiresIn: 300,
-      });
-    }
-
-    // Dev mode: return the code so the UI can display it.
     return NextResponse.json({
       ok: true,
-      sent: true,
+      sent: false,
       devMode: true,
-      devCode: code,
-      hint: "Dev mode: use this code. Set TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN + TWILIO_PHONE_NUMBER for real SMS.",
+      devCode: "123456",
+      message: "SMS not available in demo",
       expiresIn: 300,
     });
   } catch (err) {
     return errorResponse(err);
   }
 }
+

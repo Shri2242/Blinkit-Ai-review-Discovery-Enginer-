@@ -79,7 +79,7 @@ const STEPS = [
 ];
 
 const STATS = [
-  { value: "50+", label: "Reviews analyzed" },
+  { value: "105+", label: "Reviews analyzed" },
   { value: "4", label: "Sources connected" },
   { value: "6", label: "Segment dimensions" },
   { value: "0", label: "Manual tagging hours" },
@@ -87,10 +87,8 @@ const STATS = [
 
 export function Landing() {
   const setView = useApp((s) => s.setView);
-  const user = useApp((s) => s.user);
-  // If already signed in, dashboard CTAs go straight in; otherwise to login.
-  const goDashboard = () => setView(user ? "overview" : "login");
-  const goChat = () => setView(user ? "chat" : "login");
+  const goDashboard = () => setView("overview");
+  const goChat = () => setView("chat");
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -110,10 +108,10 @@ export function Landing() {
             <a href="#pipeline" className="hover:text-foreground">Pipeline</a>
           </nav>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setView("login")}>
+            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setView("overview")}>
               Sign in
             </Button>
-            <Button size="sm" className="gap-1.5" onClick={() => setView("register")}>
+            <Button size="sm" className="gap-1.5" onClick={() => setView("overview")}>
               Get Started <ArrowRight className="h-3.5 w-3.5" />
             </Button>
           </div>
@@ -298,7 +296,7 @@ jobs:
                 Stop reading reviews one at a time.
               </h2>
               <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground md:text-base">
-                The demo is pre-loaded with 50 real-world-style Spotify discovery reviews. Click through the
+                The demo is pre-loaded with 105 real-world-style Spotify discovery reviews. Click through the
                 dashboard, ask the AI Chat a question, and watch it cite its sources.
               </p>
               <div className="mt-7 flex justify-center">

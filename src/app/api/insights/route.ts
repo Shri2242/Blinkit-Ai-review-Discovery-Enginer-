@@ -54,11 +54,11 @@ export async function GET(req: NextRequest) {
     if (r.sentiment === "negative") s.negative++;
     if (r.priority === "critical") s.critical++;
     if (r.priority === "high") s.high++;
-    if (s.samples.length < 3) s.samples.push({ id: r.id, text: r.text, rating: r.rating, source: r.source });
+    if (s.samples.length < 3) s.samples.push({ id: r.id, text: r.text, rating: r.rating ?? 3, source: r.source });
     themeStats.set(theme, s);
 
     if (r.isFeatureRequest) {
-      featureRequests.push({ theme, text: r.text, rating: r.rating, source: r.source });
+      featureRequests.push({ theme, text: r.text, rating: r.rating ?? 3, source: r.source });
     }
 
     // weekly buckets

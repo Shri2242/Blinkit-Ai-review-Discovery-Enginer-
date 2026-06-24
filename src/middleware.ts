@@ -43,15 +43,17 @@ const SECURITY_HEADERS: Record<string, string> = {
   "Permissions-Policy": "camera=(), microphone=(), geolocation=(), browsing-topics=()",
   "X-DNS-Prefetch-Control": "off",
   "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
-  // CSP: disallow eval, inline scripts (except Next.js runtime hashes), and
-  // external origins. Fonts/images/styles from same-origin only.
   "Content-Security-Policy": [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline'",
+    process.env.NODE_ENV === "development"
+      ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+      : "script-src 'self' 'unsafe-inline'",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com data:",
     "img-src 'self' data: blob: https:",
-    "connect-src 'self'",
+    process.env.NODE_ENV === "development"
+      ? "connect-src 'self' ws: wss:"
+      : "connect-src 'self'",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",

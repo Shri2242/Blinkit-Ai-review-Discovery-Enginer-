@@ -223,6 +223,22 @@ export function ChatView() {
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
+  useEffect(() => {
+    setMessages([]);
+    setReviewCount(null);
+  }, [activeProjectId]);
+
+  useEffect(() => {
+    const handler = () => {
+      setMessages([]);
+      setReviewCount(null);
+    };
+    window.addEventListener("rp-refresh", handler);
+    return () => {
+      window.removeEventListener("rp-refresh", handler);
+    };
+  }, [activeProjectId]);
+
   // Auto-scroll to the newest message.
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { ensureProject } from "@/lib/server";
-import { getAuthContext, errorResponse } from "@/lib/rbac";
+// [DEMO MODE] Auth import commented out — re-enable for production
+// import { getAuthContext, errorResponse } from "@/lib/rbac";
+import { errorResponse } from "@/lib/rbac";
 import { ragChat } from "@/lib/ai";
 import { chatSchema } from "@/lib/validation";
 
@@ -9,6 +11,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 // POST /api/chat — RAG chat with real vector search + chat history persistence.
+// [DEMO MODE] Auth gate removed — uses first project, persists with demo user id.
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -17,22 +20,30 @@ export async function POST(req: NextRequest) {
     const question = parsed.data.question.trim();
 
     const projectId = req.nextUrl.searchParams.get("projectId") || undefined;
-    const ctx = await getAuthContext(projectId);
-    if (!ctx.user) {
-      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
-    }
-    if (!ctx.project) {
-      return NextResponse.json({ error: "No project access" }, { status: 403 });
-    }
+
+    // [DEMO MODE] Original auth-gated implementation:
+    // const ctx = await getAuthContext(projectId);
+    // if (!ctx.user) {
+    //   return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    // }
+    // if (!ctx.project) {
+    //   return NextResponse.json({ error: "No project access" }, { status: 403 });
+    // }
+    // const projectRef = ctx.project;
+    // const userId = ctx.user.id;
+
+    // Demo: use first project with demo user id
+    const projectRef = await ensureProject(projectId);
+    const userId = "demo";
 
     const reviews = await db.review.findMany({
-      where: { projectId: ctx.project.id, processingStatus: "completed" },
+      where: { projectId: projectRef.id, processingStatus: "completed" },
       select: { id: true, text: true, author: true, source: true, rating: true, title: true, sentiment: true, theme: true, reviewDate: true },
     });
 
     // Load embeddings for vector search.
     const embeddingRows = await db.reviewEmbedding.findMany({
-      where: { projectId: ctx.project.id },
+      where: { projectId: projectRef.id },
       select: { reviewId: true, embedding: true },
     });
     const embeddingByReviewId = new Map<string, number[]>();
@@ -52,22 +63,26 @@ export async function POST(req: NextRequest) {
       embeddingByReviewId,
     );
 
-    // Persist chat history.
-    await db.chatMessage.create({ data: { projectId: ctx.project.id, userId: ctx.user.id, role: "user", content: question } });
-    await db.chatMessage.create({
-      data: {
-        projectId: ctx.project.id,
-        userId: ctx.user.id,
-        role: "assistant",
-        content: answer,
-        metadata: JSON.stringify({
-          source_review_ids: sources.map((s) => s.reviewId),
-          sources: sources.slice(0, 5).map((s) => ({ id: s.reviewId, text: s.text.slice(0, 200), similarity: s.score, sentiment: null, source: s.source })),
-          vectorSearch: embeddingByReviewId.size > 0,
-          embeddedCount: embeddingByReviewId.size,
-        }),
-      },
-    });
+    // Persist chat history (best-effort — demo user id is fine).
+    try {
+      await db.chatMessage.create({ data: { projectId: projectRef.id, userId, role: "user", content: question } });
+      await db.chatMessage.create({
+        data: {
+          projectId: projectRef.id,
+          userId,
+          role: "assistant",
+          content: answer,
+          metadata: JSON.stringify({
+            source_review_ids: sources.map((s) => s.reviewId),
+            sources: sources.slice(0, 5).map((s) => ({ id: s.reviewId, text: s.text.slice(0, 200), similarity: s.score, sentiment: null, source: s.source })),
+            vectorSearch: embeddingByReviewId.size > 0,
+            embeddedCount: embeddingByReviewId.size,
+          }),
+        },
+      });
+    } catch {
+      // Chat history persistence failure is non-fatal in demo mode
+    }
 
     return NextResponse.json({
       answer,

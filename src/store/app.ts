@@ -52,8 +52,13 @@ export const useApp = create<AppState>((set) => ({
       activeProjectId: projects[0]?.id ?? null,
       authReady: true,
     }),
-  setActiveProject: (activeProjectId) => set({ activeProjectId }),
-  clearAuth: () => set({ user: null, projects: [], activeProjectId: null, view: "landing" }),
+  setActiveProject: (activeProjectId) => {
+    set({ activeProjectId, searchQuery: "" });
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("rp-refresh"));
+    }
+  },
+  clearAuth: () => set({ user: null, projects: [], activeProjectId: null, view: "overview" }),
 
   sidebarCollapsed: false,
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),

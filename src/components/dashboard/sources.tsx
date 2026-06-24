@@ -219,6 +219,7 @@ export function SourcesView() {
   const [runningAll, setRunningAll] = useState(false);
   const [runningId, setRunningId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [pulling, setPulling] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -233,11 +234,22 @@ export function SourcesView() {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, activeProjectId]);
 
   useEffect(() => {
+    setLoading(true);
     refresh();
-  }, [refresh]);
+  }, [refresh, activeProjectId]);
+
+  useEffect(() => {
+    const handler = () => {
+      refresh();
+    };
+    window.addEventListener("rp-refresh", handler);
+    return () => {
+      window.removeEventListener("rp-refresh", handler);
+    };
+  }, [refresh, activeProjectId]);
 
   const enabledCount = sources.filter((s) => s.enabled).length;
   const totalCollected = sources.reduce((acc, s) => acc + s.totalCollected, 0);
@@ -306,10 +318,13 @@ export function SourcesView() {
           variant: "destructive",
         });
       } else {
+        const totalNew = r.totalNew ?? 0;
+        const analyzed = r.analysis?.processed ?? 0;
         toast({
-          title: `Run complete · ${r.results.length} source(s)`,
-          description: `${newCount} new / ${fetched} fetched / ${dup} duplicate.`,
+          title: "Pull Complete",
+          description: `Pulled ${totalNew} new reviews and analyzed ${analyzed}. Dashboard updated.`,
         });
+        window.dispatchEvent(new Event("rp-refresh"));
       }
       await refresh();
     } catch (e) {
@@ -320,6 +335,29 @@ export function SourcesView() {
       });
     } finally {
       setRunningAll(false);
+    }
+  };
+
+  const handlePullNewReviews = async () => {
+    setPulling(true);
+    try {
+      const r = await api.collect(undefined, activeProjectId);
+      const totalNew = r.totalNew ?? 0;
+      const analyzed = r.analysis?.processed ?? 0;
+      toast({
+        title: "Pull Complete",
+        description: `Pulled ${totalNew} new reviews and analyzed ${analyzed}. Dashboard updated.`,
+      });
+      window.dispatchEvent(new Event("rp-refresh"));
+      await refresh();
+    } catch (e) {
+      toast({
+        title: "Failed to pull reviews",
+        variant: "destructive",
+        description: e instanceof Error ? e.message : "An unexpected error occurred",
+      });
+    } finally {
+      setPulling(false);
     }
   };
 
@@ -364,6 +402,39 @@ export function SourcesView() {
 
         {/* ==================== TAB 1: Automated ==================== */}
         <TabsContent value="auto" className="mt-4 space-y-6">
+          {/* Prominent Pull Reviews Banner */}
+          <div className="relative overflow-hidden rounded-xl border border-primary/20 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-5">
+            <div className="absolute right-0 top-0 -mr-6 -mt-6 h-24 w-24 rounded-full bg-primary/10 blur-2xl" />
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-primary animate-pulse" />
+                  <h4 className="font-heading text-sm font-semibold text-foreground">Sync review feeds</h4>
+                </div>
+                <p className="text-xs text-muted-foreground max-w-xl">
+                  Pull latest reviews from Google Play, App Store, and Reddit, and automatically process them with Hugging Face AI.
+                </p>
+              </div>
+              <Button
+                onClick={handlePullNewReviews}
+                disabled={pulling}
+                className="relative overflow-hidden bg-primary hover:bg-primary/90 text-white gap-2 font-medium shadow-md shadow-primary/25 shrink-0 self-start sm:self-center"
+              >
+                {pulling ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    <span>Pulling & Analyzing…</span>
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4" />
+                    <span>Pull New Reviews Now</span>
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+
           {/* summary strip */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <SummaryTile label="Collectors" value={sources.length} icon={<Database className="h-3.5 w-3.5" />} />

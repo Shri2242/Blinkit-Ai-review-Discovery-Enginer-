@@ -95,7 +95,7 @@ export async function GET(req: NextRequest) {
     byPriority: byPriority.map((p) => ({ priority: p.priority, count: p._count._all })),
     byRating: byRating
       .map((r) => ({ rating: r.rating, count: r._count._all }))
-      .sort((a, b) => a.rating - b.rating),
+      .sort((a, b) => (a.rating ?? 0) - (b.rating ?? 0)),
     sentimentTrend,
     topIssues,
   });

@@ -82,7 +82,58 @@ export function SettingsView() {
   const [clearingReviews, setClearingReviews] = useState(false);
   const [envCopied, setEnvCopied] = useState(false);
   const { toast } = useToast();
-  const { setView, activeProjectId, user } = useApp();
+  const { setView, activeProjectId, user, projects, setAuth, setActiveProject } = useApp();
+
+  const activeProject = projects.find((p) => p.id === activeProjectId) ?? projects[0];
+
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [savingProject, setSavingProject] = useState(false);
+  const [deleteProjectOpen, setDeleteProjectOpen] = useState(false);
+  const [deletingProject, setDeletingProject] = useState(false);
+
+  useEffect(() => {
+    if (activeProject) {
+      setName(activeProject.name);
+      setDescription(activeProject.description ?? "");
+    }
+  }, [activeProject]);
+
+  const saveProjectDetails = async () => {
+    if (!name.trim()) {
+      toast({ title: "Project name is required", variant: "destructive" });
+      return;
+    }
+    setSavingProject(true);
+    try {
+      await api.updateProject(activeProjectId!, { name: name.trim(), description: description.trim() || null });
+      const me = await api.me();
+      setAuth({ user: me.user, projects: me.projects });
+      toast({ title: "Project updated" });
+    } catch (e) {
+      toast({ title: "Failed to update project", variant: "destructive", description: e instanceof Error ? e.message : "" });
+    } finally {
+      setSavingProject(false);
+    }
+  };
+
+  const handleDeleteProject = async () => {
+    setDeletingProject(true);
+    try {
+      await api.deleteProject(activeProjectId!);
+      toast({ title: "Project deleted" });
+      const me = await api.me();
+      setAuth({ user: me.user, projects: me.projects });
+      const nextP = me.projects[0];
+      setActiveProject(nextP ? nextP.id : null);
+      setView("overview");
+      setDeleteProjectOpen(false);
+    } catch (e) {
+      toast({ title: "Failed to delete project", variant: "destructive", description: e instanceof Error ? e.message : "" });
+    } finally {
+      setDeletingProject(false);
+    }
+  };
 
   const loadKeys = useCallback(async () => {
     setKeysLoading(true);
@@ -121,7 +172,19 @@ export function SettingsView() {
     loadKeys();
     loadEmbed();
     loadEnvStatus();
-  }, [loadKeys, loadEmbed, loadEnvStatus]);
+  }, [loadKeys, loadEmbed, loadEnvStatus, activeProjectId]);
+
+  useEffect(() => {
+    const handler = () => {
+      loadKeys();
+      loadEmbed();
+      loadEnvStatus();
+    };
+    window.addEventListener("rp-refresh", handler);
+    return () => {
+      window.removeEventListener("rp-refresh", handler);
+    };
+  }, [loadKeys, loadEmbed, loadEnvStatus, activeProjectId]);
 
   const generateKey = async () => {
     if (!newKeyName.trim()) return;
@@ -204,20 +267,32 @@ export function SettingsView() {
           <ChartCard title="Project details" subtitle="Shown across the dashboard">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label>Project name</Label>
-                <Input defaultValue="Spotify — Music Discovery" />
+                <Label htmlFor="project-name-input">Project name</Label>
+                <Input
+                  id="project-name-input"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Spotify — Music Discovery"
+                />
               </div>
               <div className="space-y-1.5">
-                <Label>Owner</Label>
-                <Input defaultValue={user?.email ?? "pm@reviewpulse.dev"} disabled />
+                <Label htmlFor="project-owner-input">Owner</Label>
+                <Input id="project-owner-input" defaultValue={user?.email ?? "pm@reviewpulse.dev"} disabled />
               </div>
               <div className="space-y-1.5 sm:col-span-2">
-                <Label>Description</Label>
-                <Input defaultValue="Growth team initiative: analyze user feedback to increase meaningful music discovery." />
+                <Label htmlFor="project-desc-input">Description</Label>
+                <Input
+                  id="project-desc-input"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="What is this project analyzing?"
+                />
               </div>
             </div>
             <div className="mt-4 flex justify-end">
-              <Button>Save changes</Button>
+              <Button onClick={saveProjectDetails} disabled={savingProject}>
+                {savingProject ? "Saving..." : "Save changes"}
+              </Button>
             </div>
           </ChartCard>
 
@@ -406,7 +481,11 @@ export function SettingsView() {
                     </p>
                   </div>
                 </div>
-                <Button variant="outline" className="gap-2 border-red-500/40 text-red-300 hover:bg-red-500/10" disabled>
+                <Button
+                  variant="outline"
+                  className="gap-2 border-red-500/40 text-red-300 hover:bg-red-500/10"
+                  onClick={() => setDeleteProjectOpen(true)}
+                >
                   <Trash2 className="h-4 w-4" /> Delete project
                 </Button>
               </div>
@@ -490,6 +569,24 @@ export function SettingsView() {
             <Button onClick={clearReviews} disabled={clearingReviews} variant="outline" className="gap-2 border-red-500/40 text-red-300 hover:bg-red-500/10">
               <Trash2 className="h-4 w-4" />
               {clearingReviews ? "Clearing…" : "Yes, clear reviews"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Delete project confirm */}
+      <Dialog open={deleteProjectOpen} onOpenChange={setDeleteProjectOpen}>
+        <DialogContent className="border-border/60 bg-popover">
+          <DialogHeader>
+            <DialogTitle>Delete this project?</DialogTitle>
+            <DialogDescription>
+              This will permanently delete the project <strong className="text-foreground">{activeProject?.name}</strong> and all associated reviews, sources, and settings. This action is irreversible.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDeleteProjectOpen(false)}>Cancel</Button>
+            <Button onClick={handleDeleteProject} disabled={deletingProject} variant="destructive" className="gap-2 bg-red-600 hover:bg-red-700 text-white border-0">
+              <Trash2 className="h-4 w-4" />
+              {deletingProject ? "Deleting…" : "Yes, delete project"}
             </Button>
           </DialogFooter>
         </DialogContent>
