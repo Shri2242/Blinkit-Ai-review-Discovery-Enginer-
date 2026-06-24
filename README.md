@@ -132,29 +132,56 @@ Open [http://localhost:3000](http://localhost:3000) to access the landing page a
 
 ---
 
+## Production Deployment (Neon Postgres)
+
+The project is pre-configured for direct deployment to **Neon Postgres** on **Vercel**. 
+
+### 1. Database Connection & Schema Migration
+- The database connection is loaded dynamically from the `DATABASE_URL` environment variable. **Do not hardcode connection strings** in the codebase.
+- During Vercel build time, the database tables are automatically provisioned and synchronized using the local **Prisma v6 client** via:
+  ```bash
+  npx prisma generate && npx prisma db push --accept-data-loss
+  ```
+- This build-time hook is declared in `vercel.json` and `package.json` to ensure the Neon database is always in sync with your schema prior to cold start.
+
+### 2. First-Run UI Database Bootstrapping
+- If your Neon database starts completely empty (with `0` projects), the live website will automatically display a **Database Initialization** onboarding screen.
+- Click **"Initialize Demo Database"** directly in the browser to bootstrap the database with a default admin user (`pm@reviewpulse.dev`), a demo Spotify workspace, and the 105 sample reviews.
+
+### 3. Vercel Hobby Plan Deployment Guard (Git Commits)
+If you deploy this project to Vercel on a **Hobby Plan**, Vercel blocks deployments if it detects commit authors with unrecognized email addresses (treating them as unauthorized private collaborators). 
+
+To ensure Vercel builds your commits without blocks, configure Git locally in this repository to use your GitHub no-reply email before committing:
+```bash
+# Configure git locally in the project directory
+git config user.name "Your Name"
+git config user.email "username@users.noreply.github.com"
+```
+*(For example, if your GitHub username is `Shri2242`, set the email to `shri2242@users.noreply.github.com`)*.
+
+If your deployment is blocked due to an old commit with an incorrect email, squash your recent commits and rewrite the author:
+```bash
+git commit --amend --reset-author --no-edit
+git push origin main --force
+```
+
+---
+
 ## Strategy: How to Enable Optional Features
 
-If you clone this project and want to migrate from the lightweight sandbox setup to a full production environment, follow these steps:
+If you want to configure additional enterprise features in your production environment:
 
-### 1. Migrating to PostgreSQL + pgvector
-By default, the project uses SQLite. To switch:
-1. Open [prisma/schema.prisma](file:///Users/shri/Downloads/AI%20REVIWE%20PROJECT/prisma/schema.prisma) and change the database provider:
-   ```prisma
-   datasource db {
-     provider = "postgresql"
-     url      = env("DATABASE_URL")
-   }
-   ```
-2. Update the `ReviewEmbedding` model:
+### 1. Enabling pgvector (Optional)
+Currently, `ReviewEmbedding` stores vectors as JSON Strings to maintain compile-time compatibility. To migrate to native pgvector:
+1. Run the script `prisma/add-pgvector.sql` in your Postgres console to enable the `vector` extension.
+2. In `prisma/schema.prisma`, update the `ReviewEmbedding` model:
    ```prisma
    model ReviewEmbedding {
      // ...
-     embedding Unsupported("VECTOR(384)")? // Use pgvector instead of String JSON
+     embedding Unsupported("VECTOR(384)")? // Use native pgvector instead of String JSON
      // ...
    }
    ```
-3. Set your production Postgres connection string under `DATABASE_URL` in `.env`.
-4. Run `bunx prisma db push` to synchronize the schema.
 
 ### 2. Switching to DeepSeek LLM (Paid)
 If you prefer to run analysis and RAG with DeepSeek instead of the free Hugging Face API:
@@ -171,4 +198,5 @@ If you prefer to run analysis and RAG with DeepSeek instead of the free Hugging 
 
 ### 5. Setting up Distributed Rate Limiting
 The middleware rate limiter operates in-memory. If deploying multiple app instances behind a load balancer, provide `REDIS_URL` in `.env`. The rate-limiting logic will automatically connect to your Redis instance to synchronize rate-limits across all app instances.
+
 
