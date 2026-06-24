@@ -60,13 +60,24 @@ const SECURITY_HEADERS: Record<string, string> = {
   ].join("; "),
 };
 
+const MUTATION_RATE_LIMIT = 100;
+const MUTATION_RATE_WINDOW_MS = 15 * 60 * 1000;
+
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  const isApiRoute = pathname.startsWith("/api/");
+  const isMutation = ["POST", "PUT", "PATCH", "DELETE"].includes(req.method);
 
-  // Rate limit auth mutation routes.
-  if (pathname === "/api/auth/login" || pathname === "/api/auth/register") {
+  // Rate limit auth mutation routes and general API mutations.
+  if (isApiRoute && isMutation) {
+    const isAuth = pathname === "/api/auth/login" || pathname === "/api/auth/register";
+    const limit = isAuth ? AUTH_RATE_LIMIT : MUTATION_RATE_LIMIT;
+    const windowMs = isAuth ? AUTH_RATE_WINDOW_MS : MUTATION_RATE_WINDOW_MS;
+    
     const ip = getClientIp(req);
-    const rl = rateLimit(ip, AUTH_RATE_LIMIT, AUTH_RATE_WINDOW_MS);
+    const key = isAuth ? `${ip}:auth` : `${ip}:mutation`;
+    const rl = rateLimit(key, limit, windowMs);
+    
     if (!rl.ok) {
       return NextResponse.json(
         { error: "Too many attempts. Please try again later.", code: "rate_limited" },

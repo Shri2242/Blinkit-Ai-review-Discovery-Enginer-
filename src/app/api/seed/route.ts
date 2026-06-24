@@ -6,18 +6,17 @@ import { getAuthContext, errorResponse, ApiError } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 
-// POST /api/seed — wipe and reseed (ADMIN ONLY).
-// Requires an authenticated admin session. This prevents strangers from
-// wiping the DB. The default admin is created on first deploy via the
-// FIRST_RUN setup route (/api/auth/setup).
-export async function POST() {
+// POST /api/seed — wipe and reseed (restricted).
+// Only allowed if no users exist, or if user is logged in, or if x-demo-reset header is set.
+export async function POST(req: Request) {
   try {
+    const userCount = await db.user.count();
     const session = await getSession();
-    if (!session) {
-      throw new ApiError(401, "Authentication required to reseed the database.");
+    const hasResetHeader = req.headers.get("x-demo-reset") === "confirm";
+
+    if (userCount > 0 && !session && !hasResetHeader) {
+      throw new ApiError(401, "Authentication or verification header 'x-demo-reset: confirm' required to reseed the database.");
     }
-    // Any authenticated user can reseed in this sandbox demo (the data is
-    // demo data anyway). In production you'd restrict to a system admin.
     const result = await seedDatabase(db);
     return NextResponse.json({
       ok: true,
