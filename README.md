@@ -70,14 +70,31 @@ We prioritized a **lean, self-contained architecture** that runs on free-tier se
 - **Recharts** — For render-efficient segment charts and sentiment trends.
 - **Zustand** — Client state management.
 
-### Commented / Optional Integrations
-To keep the application highly lightweight and deployable out-of-the-box, heavier or paid integrations have been commented out or made optional in development:
-- **DeepSeek API** (Optional paid LLM fallback)
-- **Firebase Admin SDK** (Optional for phone/OAuth identity verification)
-- **Google OAuth** (Optional for multi-tenant deployments)
-- **Resend** (Optional email provider for team invites)
-- **Twilio** (Optional SMS gateway for phone codes)
-- **Redis** (Optional for production multi-instance rate limiting; local rate-limiting runs in-memory)
+### Commented / Optional Integrations (For Future Use)
+To keep the deployment zero-cost and self-contained, the following enterprise integrations are currently bypassed or disabled, but can be enabled in production by configuring their environment variables:
+
+```bash
+# -- OPTIONAL AI PROVIDER --
+# DEEPSEEK_API_KEY=your_key_here         # Paid DeepSeek LLM API key
+# DEEPSEEK_BASE_URL=https://api.deepseek.com
+
+# -- OPTIONAL AUTHENTICATION & IDENTITY --
+# GOOGLE_CLIENT_ID=your_id_here         # For Google OAuth Sign-in
+# GOOGLE_CLIENT_SECRET=your_secret_here
+# FIREBASE_PROJECT_ID=your_id_here       # For phone verification & user profiles
+# FIREBASE_SERVICE_ACCOUNT=your_json_here
+
+# -- OPTIONAL COMMUNICATORS --
+# RESEND_API_KEY=your_key_here           # For automated email verification/invites
+# RESEND_FROM_EMAIL=noreply@yourdomain.com
+# TWILIO_ACCOUNT_SID=your_sid_here       # For SMS OTP verification
+# TWILIO_AUTH_TOKEN=your_token_here
+# TWILIO_PHONE_NUMBER=your_number_here
+
+# -- OPTIONAL INFRASTRUCTURE --
+# REDIS_URL=redis://localhost:6379       # For production distributed rate limiting
+# DATABASE_URL=postgresql://...          # Migrates from SQLite to Postgres + pgvector
+```
 
 ---
 
