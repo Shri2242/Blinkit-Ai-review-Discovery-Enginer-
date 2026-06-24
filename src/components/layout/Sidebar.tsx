@@ -37,8 +37,11 @@ const NAV: NavItem[] = [
 ];
 
 export function Sidebar() {
-  const { view, setView, sidebarCollapsed, toggleSidebar } = useApp();
+  const { view, setView, sidebarCollapsed, toggleSidebar, projects, activeProjectId } = useApp();
   const collapsed = sidebarCollapsed;
+
+  const activeProject = projects.find((p) => p.id === activeProjectId) ?? projects[0];
+  const projectName = activeProject?.name ?? "Project";
 
   return (
     <aside
@@ -66,7 +69,7 @@ export function Sidebar() {
         <div className="border-b border-border/60 px-3 py-3">
           <div className="rounded-lg border border-border/60 bg-secondary/40 px-3 py-2">
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Active project</p>
-            <p className="mt-0.5 truncate text-xs font-medium text-foreground">Spotify — Music Discovery</p>
+            <p className="mt-0.5 truncate text-xs font-medium text-foreground">{projectName}</p>
           </div>
         </div>
       )}

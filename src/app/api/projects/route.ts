@@ -12,8 +12,14 @@ export async function GET() {
     if (!ctx.user) {
       return Response.json({ error: "Authentication required" }, { status: 401 });
     }
-    // Demo Mode: return all projects in the database
+    // Return the global demo project OR projects owned by the authenticated user.
     const projects = await db.project.findMany({
+      where: {
+        OR: [
+          { name: "Spotify — Music Discovery" },
+          { ownerId: ctx.user.id },
+        ],
+      },
       orderBy: { createdAt: "asc" },
     });
     return Response.json({

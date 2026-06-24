@@ -95,7 +95,14 @@ export default function Home() {
     let alive = true;
     (async () => {
       try {
-        const me = await api.me();
+        let me = await api.me();
+        if (!me.user) {
+          // Log in automatically as a unique guest user to get isolated workspace
+          const guestRes = await api.guest();
+          if (guestRes.ok) {
+            me = await api.me();
+          }
+        }
         if (!alive) return;
         setAuth({ user: me.user, projects: me.projects });
       } catch {
