@@ -108,7 +108,7 @@ jobs:
             -X POST \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${API_AUTH_TOKEN}" \
-            -d '{"sourceId":null}' \
+            -d '{"sourceId":null,"skipAutoProcess":true}' \
             "${API_BASE_URL}/api/collect")
           HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
           BODY=$(echo "$RESPONSE" | sed '$d')
