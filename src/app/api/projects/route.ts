@@ -18,6 +18,7 @@ export async function GET() {
         OR: [
           { name: "Spotify — Music Discovery" },
           { ownerId: ctx.user.id },
+          { members: { some: { userId: ctx.user.id } } },
         ],
       },
       orderBy: { createdAt: "asc" },

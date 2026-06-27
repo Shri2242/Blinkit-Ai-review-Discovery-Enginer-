@@ -4,14 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000 2>&1 | tee dev.log",
-    "build": "npx prisma generate && npx prisma db push --accept-data-loss && next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
-    "migrate": "npx prisma db push",
-    "start": "NODE_ENV=production bun .next/standalone/server.js 2>&1 | tee server.log",
+    "build": "npx --no-install prisma generate && npx --no-install prisma db push --accept-data-loss && next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
+    "migrate": "npx --no-install prisma db push",
+    "start": "NODE_ENV=production node .next/standalone/server.js 2>&1 | tee server.log",
     "lint": "eslint .",
-    "db:push": "npx prisma db push",
-    "db:generate": "npx prisma generate",
-    "db:migrate": "npx prisma migrate dev",
-    "db:reset": "npx prisma migrate reset"
+    "db:push": "npx --no-install prisma db push",
+    "db:generate": "npx --no-install prisma generate",
+    "db:migrate": "npx --no-install prisma migrate dev",
+    "db:reset": "npx --no-install prisma migrate reset"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
