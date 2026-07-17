@@ -75,7 +75,7 @@ jobs:
       # bun for install + script execution. Node is still installed above
       # because some tooling (e.g. certain Prisma binaries) expect it.
       - name: Setup bun
-        uses: oven-sh/setup-bun@v1
+        uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
