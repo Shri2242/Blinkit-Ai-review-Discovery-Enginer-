@@ -74,23 +74,18 @@ jobs:
       # The sandbox + this repo use bun (bun.lock is committed), so we use
       # bun for install + script execution. Node is still installed above
       # because some tooling (e.g. certain Prisma binaries) expect it.
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v1
-        with:
-          bun-version: latest
-
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       - name: Generate Prisma client
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: bunx prisma generate
+        run: npx prisma generate
 
       - name: Push schema to database
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: bunx prisma db push --accept-data-loss
+        run: npx prisma db push --accept-data-loss
 
       # -------------------------------------------------------------------------
       # Step 1: Collect — pull fresh reviews from all enabled collector sources.

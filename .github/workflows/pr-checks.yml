@@ -52,22 +52,16 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v1
-        with:
-          bun-version: latest
-
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
-      # `bun run lint` → `eslint .` (see package.json scripts).
+      # `npm run lint` → `eslint .` (see package.json scripts).
       # ESLint config lives in eslint.config.mjs (flat config).
       - name: Run ESLint
-        run: bun run lint
+        run: npm run lint
 
-      # `bunx tsc --noEmit` type-checks the whole project without emitting
+      # `nsc tsc --noEmit` type-checks the whole project without emitting
       # .js files. The repo has no dedicated `typecheck` script, so we call
-      # tsc directly. (Add `"typecheck": "tsc --noEmit"` to package.json
-      # scripts and switch to `bun run typecheck` if you prefer.)
+      # tsc directly.
       - name: Type check (tsc --noEmit)
-        run: bunx tsc --noEmit
+        run: npx tsc --noEmit
