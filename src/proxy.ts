@@ -63,7 +63,7 @@ const SECURITY_HEADERS: Record<string, string> = {
 const MUTATION_RATE_LIMIT = 100;
 const MUTATION_RATE_WINDOW_MS = 15 * 60 * 1000;
 
-export function proxy(req: NextRequest) {
+export default function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const isApiRoute = pathname.startsWith("/api/");
   const isMutation = ["POST", "PUT", "PATCH", "DELETE"].includes(req.method);
