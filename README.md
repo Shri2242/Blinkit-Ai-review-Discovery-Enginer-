@@ -35,7 +35,7 @@ The discovery engine helps the product team answer critical product-discovery qu
 This project is built using a modern, focused stack:
 
 - **Frontend / Framework**: [Next.js 15](https://nextjs.org/) (App Router, React, Tailwind CSS, shadcn/ui)
-- **Database**: [SQLite](https://sqlite.org/) (via [Prisma ORM](https://www.prisma.io/))
+- **Database**: [PostgreSQL](https://www.postgresql.org/) (via [Prisma ORM](https://www.prisma.io/))
 - **AI / LLM Inference**: 
   - **Primary**: Hugging Face Inference API via Router Client (`Qwen/Qwen2.5-Coder-32B-Instruct` model)
   - **Backup**: Google Gemini API (`gemini-2.5-flash` model)
@@ -50,13 +50,14 @@ This project is built using a modern, focused stack:
 
 ### 1. Prerequisites
 - Node.js (v18+)
+- A running PostgreSQL database (e.g., local Postgres, Neon, Supabase, or Railway)
 - A [Hugging Face](https://huggingface.co/) account (for a free API token)
 
 ### 2. Environment Variables
 Create a `.env` file in the root of the project with the following:
 
 ```env
-DATABASE_URL="file:./db/reviewpulse.db"
+DATABASE_URL="postgresql://user:password@localhost:5432/blinkit_db"
 JWT_SECRET="local-development-secret-key-12345"
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
 HUGGINGFACE_API_KEY="hf_your_huggingface_token_here"

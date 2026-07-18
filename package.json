@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000 2>&1 | tee dev.log",
-    "build": "DATABASE_URL=\"file:./db/reviewpulse.db\" npx --no-install prisma generate && DATABASE_URL=\"file:./db/reviewpulse.db\" npx --no-install prisma db push --accept-data-loss && DATABASE_URL=\"file:./db/reviewpulse.db\" next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
+    "build": "DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/postgres\" npx --no-install prisma generate && next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
     "migrate": "npx --no-install prisma db push",
     "start": "NODE_ENV=production node .next/standalone/server.js 2>&1 | tee server.log",
     "lint": "eslint .",
