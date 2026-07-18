@@ -14,6 +14,7 @@ import "server-only";
 import ZAI from "z-ai-web-dev-sdk";
 import { isHuggingFaceConfigured, getHuggingFaceModel, huggingfaceChat } from "./huggingface";
 import { isGeminiConfigured, getGeminiModel, geminiChat } from "./gemini";
+import { isDeepSeekConfigured } from "./deepseek";
 
 export type Sentiment = "positive" | "negative" | "neutral" | "mixed";
 export type Priority = "critical" | "high" | "medium" | "low";

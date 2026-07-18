@@ -1,4 +1,4 @@
-import type { FetchedReview } from "./types";
+import type { FetchedReview } from "./collectors";
 import { PrismaClient } from "@prisma/client";
 import { createHash } from "crypto";
 
