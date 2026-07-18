@@ -272,7 +272,7 @@ export function SettingsView() {
                   id="project-name-input"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Spotify — Music Discovery"
+                  placeholder="e.g. Blinkit Review Discovery Enginer"
                 />
               </div>
               <div className="space-y-1.5">

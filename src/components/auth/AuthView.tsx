@@ -360,7 +360,7 @@ export function AuthView({ mode: initialMode }: { mode: "login" | "register" }) 
               <p className="text-xs text-muted-foreground">No accounts exist yet.</p>
               <button onClick={runSetup} disabled={loading} className="mt-1.5 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline">
                 {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                Run first-run setup (creates demo admin + 105 reviews)
+                Run first-run setup (creates demo admin + 50 reviews)
               </button>
             </div>
           )}

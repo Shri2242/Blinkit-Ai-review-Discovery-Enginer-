@@ -216,7 +216,7 @@ export function OverviewView() {
       <div className="space-y-6">
         <SectionHeader
           title="Overview"
-          description="Real-time analysis of Spotify music-discovery feedback across all sources."
+          description="Real-time analysis of Blinkit music-discovery feedback across all sources."
         />
         <LoadingBlock label="Loading overview…" />
       </div>
@@ -228,7 +228,7 @@ export function OverviewView() {
       <div className="space-y-6">
         <SectionHeader
           title="Overview"
-          description="Real-time analysis of Spotify music-discovery feedback across all sources."
+          description="Real-time analysis of Blinkit music-discovery feedback across all sources."
         />
         <div className="flex flex-col items-center justify-center p-8 border border-border/60 bg-card rounded-xl shadow-sm text-center max-w-xl mx-auto mt-12">
           <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary mb-4">
@@ -236,7 +236,7 @@ export function OverviewView() {
           </div>
           <h3 className="font-heading text-lg font-semibold text-foreground mb-2">Welcome to ReviewPulse</h3>
           <p className="text-sm text-muted-foreground mb-6 max-w-sm">
-            Your database is currently empty. Seed the database with the demo dataset containing 105 pre-analyzed Spotify reviews to get started instantly.
+            Your database is currently empty. Seed the database with the demo dataset containing 50 pre-analyzed Blinkit reviews to get started instantly.
           </p>
           <Button onClick={handleSeed} disabled={seeding} className="gap-2">
             <RefreshCw className={`h-4 w-4 ${seeding ? "animate-spin" : ""}`} />
@@ -252,7 +252,7 @@ export function OverviewView() {
       <div className="space-y-6">
         <SectionHeader
           title="Overview"
-          description="Real-time analysis of Spotify music-discovery feedback across all sources."
+          description="Real-time analysis of Blinkit music-discovery feedback across all sources."
         />
         <EmptyState
           icon={<AlertTriangle className="h-8 w-8" />}
@@ -268,7 +268,7 @@ export function OverviewView() {
       <div className="space-y-6">
         <SectionHeader
           title="Overview"
-          description="Real-time analysis of Spotify music-discovery feedback across all sources."
+          description="Real-time analysis of Blinkit music-discovery feedback across all sources."
         />
         <div className="flex flex-col items-center justify-center p-8 border border-border/60 bg-card rounded-xl shadow-sm text-center max-w-xl mx-auto mt-8">
           <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary mb-4">
@@ -292,7 +292,7 @@ export function OverviewView() {
     <div className="space-y-6">
       <SectionHeader
         title="Overview"
-        description="Real-time analysis of Spotify music-discovery feedback across all sources."
+        description="Real-time analysis of Blinkit music-discovery feedback across all sources."
       />
 
       {/* 1. Stat cards */}

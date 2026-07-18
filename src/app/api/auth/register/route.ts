@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     // Auto-create a default project owned by the new user + admin membership.
     const project = await db.project.create({
       data: {
-        name: "Spotify — Music Discovery",
+        name: "Blinkit Review Discovery Enginer",
         description:
           "Growth team initiative: analyze user feedback to increase meaningful music discovery.",
         ownerId: user.id,

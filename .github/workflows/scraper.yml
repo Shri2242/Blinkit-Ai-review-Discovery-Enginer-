@@ -1,0 +1,17 @@
+name: Scheduled Scraper
+
+on:
+  schedule:
+    # 04:30 UTC is 10:00 AM IST
+    - cron: '30 4 * * *'
+  workflow_dispatch: # allow manual triggering
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Scraper API
+        run: |
+          curl -X POST "${{ secrets.APP_URL }}/api/cron/collect" \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+          -d '{}'

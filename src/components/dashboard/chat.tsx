@@ -36,13 +36,15 @@ interface ChatMessage {
 
 /* ---------------- Suggested prompts ---------------- */
 
-const SUGGESTED_PROMPTS: { icon: typeof Lightbulb; label: string; prompt: string }[] = [
-  { icon: Lightbulb, label: "Discovery struggles", prompt: "Why do users struggle to discover new music?" },
-  { icon: AlertTriangle, label: "Recommendation frustrations", prompt: "What are the most common frustrations with recommendations?" },
-  { icon: TrendingUp, label: "Listening behaviors", prompt: "Which listening behaviors are users trying to achieve?" },
-  { icon: MessageSquare, label: "Repeat listening", prompt: "What causes users to repeatedly listen to the same content?" },
-  { icon: Sparkles, label: "Unmet needs", prompt: "What unmet needs emerge consistently across reviews?" },
-  { icon: Quote, label: "Source comparison", prompt: "Compare complaints from App Store vs Reddit users." },
+const SUGGESTED_PROMPTS: { icon: any; label: string; prompt: string }[] = [
+  { icon: MessageSquare, label: "Habitual buying", prompt: "Why do users repeatedly buy from the same categories?" },
+  { icon: AlertTriangle, label: "Exploration blockers", prompt: "What prevents users from exploring new categories?" },
+  { icon: Lightbulb, label: "Discovery", prompt: "How do users discover products today?" },
+  { icon: TrendingUp, label: "Shopping habits", prompt: "What role do habits play in shopping behavior?" },
+  { icon: Quote, label: "Category adoption", prompt: "What information do users need before trying a new category?" },
+  { icon: AlertTriangle, label: "Frustrations", prompt: "What frustrations emerge repeatedly?" },
+  { icon: Sparkles, label: "Segments", prompt: "Which user segments are more likely to experiment?" },
+  { icon: Sparkles, label: "Unmet needs", prompt: "What unmet needs emerge consistently across discussions?" },
 ];
 
 /* ---------------- Inline citation chip ---------------- */

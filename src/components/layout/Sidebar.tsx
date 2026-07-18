@@ -28,11 +28,10 @@ const NAV: NavItem[] = [
   { key: "overview", label: "Overview", icon: LayoutDashboard, group: "main" },
   { key: "reviews", label: "Reviews", icon: MessageSquare, group: "main" },
   { key: "sources", label: "Sources", icon: Database, group: "main" },
-  { key: "segments", label: "Segments", icon: Users, group: "main" },
-  { key: "insights", label: "Insights", icon: Lightbulb, group: "main" },
-  { key: "chat", label: "AI Chat", icon: Bot, group: "tools" },
+  { key: "chat", label: "AI Chat", icon: Bot, group: "main" },
+  { key: "segments", label: "Segments", icon: Users, group: "tools" },
+  { key: "insights", label: "Insights", icon: Lightbulb, group: "tools" },
   { key: "reports", label: "Reports", icon: FileBarChart, group: "tools" },
-  { key: "team", label: "Team", icon: Users2, group: "tools" },
   { key: "settings", label: "Settings", icon: Settings, group: "tools" },
 ];
 

@@ -21,7 +21,7 @@ function SetupDemoDataView() {
       const res = await api.setup();
       toast({
         title: "Database Initialized",
-        description: "Demo project and 105 reviews successfully seeded.",
+        description: "Demo project and 50 reviews successfully seeded.",
       });
       // Fetch user session to refresh the store
       const me = await api.me();
@@ -50,7 +50,7 @@ function SetupDemoDataView() {
             Database Initialization
           </h2>
           <p className="mt-3 text-sm text-muted-foreground max-w-sm">
-            Your database is currently empty. Initialize ReviewPulse with a default admin user, a demo project, and 105 pre-analyzed Spotify music-discovery reviews.
+            Your database is currently empty. Initialize ReviewPulse with a default admin user, a demo project, and 50 pre-analyzed Blinkit quick-commerce reviews.
           </p>
         </div>
 
@@ -64,11 +64,11 @@ function SetupDemoDataView() {
               </li>
               <li className="flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                <span>Spotify Music-Discovery project workspace</span>
+                <span>Blinkit Music-Discovery project workspace</span>
               </li>
               <li className="flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                <span>105 sample reviews categorized with AI tags</span>
+                <span>50 sample reviews categorized with AI tags</span>
               </li>
             </ul>
           </div>

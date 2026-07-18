@@ -12,8 +12,8 @@
  */
 import "server-only";
 import ZAI from "z-ai-web-dev-sdk";
-import { isDeepSeekConfigured, deepseekChat } from "./deepseek";
 import { isHuggingFaceConfigured, getHuggingFaceModel, huggingfaceChat } from "./huggingface";
+import { isGeminiConfigured, getGeminiModel, geminiChat } from "./gemini";
 
 export type Sentiment = "positive" | "negative" | "neutral" | "mixed";
 export type Priority = "critical" | "high" | "medium" | "low";
@@ -119,7 +119,7 @@ interface LLMMessage { role: string; content: string }
  * Throws on failure (callers catch and fall back to heuristics).
  */
 export async function callLLM(messages: LLMMessage[]): Promise<{ content: string; provider: string }> {
-  // Priority #1: Hugging Face (free tier, no payment needed)
+  // Priority #1: Hugging Face (FREE) — when HUGGINGFACE_API_KEY is set
   if (isHuggingFaceConfigured()) {
     try {
       const result = await huggingfaceChat(
@@ -128,7 +128,17 @@ export async function callLLM(messages: LLMMessage[]): Promise<{ content: string
       );
       return { content: result.content, provider: `huggingface (${result.model})` };
     } catch (err) {
-      console.warn("[ai] Hugging Face call failed, falling back to DeepSeek or z-ai SDK:", err);
+      console.warn("[ai] Hugging Face call failed, falling back:", err);
+    }
+  }
+
+  // Priority #2: Gemini (highly reliable backup)
+  if (isGeminiConfigured()) {
+    try {
+      const result = await geminiChat(messages);
+      return { content: result.content, provider: `gemini (${result.model})` };
+    } catch (err) {
+      console.warn("[ai] Gemini call failed, falling back:", err);
     }
   }
 
@@ -169,6 +179,9 @@ export async function callLLM(messages: LLMMessage[]): Promise<{ content: string
 export function activeLLMProvider(): string {
   if (isHuggingFaceConfigured()) {
     return `Hugging Face (${getHuggingFaceModel()}) — FREE`;
+  }
+  if (isGeminiConfigured()) {
+    return `Gemini (${getGeminiModel()})`;
   }
   if (isDeepSeekConfigured()) {
     return "DeepSeek (deepseek-chat)";

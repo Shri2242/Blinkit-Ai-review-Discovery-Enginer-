@@ -102,14 +102,14 @@ const APP_STORE_SAMPLES: Omit<FetchedReview, "sourceReviewId" | "contentHash" | 
 ];
 
 const REDDIT_SAMPLES: Omit<FetchedReview, "sourceReviewId" | "contentHash" | "source">[] = [
-  { title: null, text: "Anyone else feel like Spotify's algorithm is in a rut? My Daily Mixes haven't changed in weeks. I miss the serendipity of finding something totally unexpected.", rating: 2, author: "u/playlist_wanderer" },
-  { title: null, text: "Unpopular opinion: Spotify's discovery is actually decent IF you actively train it. Dislike songs you hate, follow small artists. It learns. Most people don't bother.", rating: 4, author: "u/deep_cuts_only" },
-  { title: null, text: "The 'Fans also like' section is just mainstream pop no matter what genre I'm in. Indie band? Here's Taylor Swift. Useless.", rating: 1, author: "u/indie_is_dead" },
+  { title: null, text: "Anyone else feel like Blinkit's fruit quality is in a rut? My last 3 orders had squished bananas. I miss the freshness from a few months ago.", rating: 2, author: "u/fruit_wanderer" },
+  { title: null, text: "Unpopular opinion: Blinkit's 10 min delivery is actually decent IF you order at non-peak times. Most people don't bother.", rating: 4, author: "u/deep_cuts_only" },
+  { title: null, text: "The 'Recommended for you' section is just random snacks no matter what I buy. Bought veggies? Here's a chocolate bar. Useless.", rating: 1, author: "u/indie_is_dead" },
 ];
 
 const TWITTER_SAMPLES: Omit<FetchedReview, "sourceReviewId" | "contentHash" | "source">[] = [
-  { title: null, text: "spotify really said 'you listened to one jazz song, here's 5000 jazz songs forever' the discovery algorithm is a joke", rating: 2, author: "@music_nerd_42" },
-  { title: null, text: "genuinely impressed with the new AI DJ feature. actually introduced me to an artist i'd never heard and now they're my most listened. more of this please @Spotify", rating: 5, author: "@beatseeker" },
+  { title: null, text: "blinkit really said 'you bought one pack of milk, here's 5000 milk ads forever' the recommendation algorithm is a joke", rating: 2, author: "@grocery_nerd_42" },
+  { title: null, text: "genuinely impressed with the new printout delivery feature. actually saved me before my visa interview. more of this please @Blinkit", rating: 5, author: "@printseeker" },
 ];
 
 /**
@@ -128,10 +128,10 @@ export async function collectReviews(
   config: Record<string, unknown> = {},
 ): Promise<{ reviews: FetchedReview[]; real: boolean }> {
   if (sourceType === "reddit") {
-    const subreddit = (config.subreddit as string) || "spotify";
-    const query = config.query as string | undefined;
+    const subreddit = (config.subreddit as string) || "Blinkit";
+    const query = (config.query as string) || "blinkit grocery";
     try {
-      const posts = await fetchRedditPosts(subreddit, query, 25);
+      const posts = await fetchRedditPosts(subreddit, query, 50);
       if (posts.length > 0) {
         return { reviews: posts.map(redditPostToFetched), real: true };
       }
@@ -144,7 +144,7 @@ export async function collectReviews(
   if (sourceType === "google_play") {
     try {
       const gplay = (await import("google-play-scraper")).default;
-      const appId = (config.appId as string) || "com.spotify.music";
+      const appId = (config.appId as string) || "com.grofers.customerapp";
       const lang = (config.lang as string) || "en";
       const reviews = await gplay.reviews({ appId, lang, sort: (gplay.sort as any).NEWEST, num: 50 });
       const fetched: FetchedReview[] = (reviews.data || []).map((r: { text?: string; score?: number; title?: string; date?: string; userName?: string; id?: string }) => ({
@@ -166,7 +166,7 @@ export async function collectReviews(
   if (sourceType === "app_store") {
     try {
       const store = (await import("app-store-scraper")).default;
-      const appId = (config.appId as string) || "324684580";
+      const appId = (config.appId as string) || "1084248054";
       const country = (config.country as string) || "us";
       const reviews = await store.reviews({ id: appId, country, sort: store.sort.RECENT, page: 1, num: 50 });
       const fetched: FetchedReview[] = (reviews || []).map((r: { text?: string; score?: number; title?: string; updated?: string; userName?: string; id?: { toString: () => string } }) => ({
@@ -232,7 +232,7 @@ export const SOURCE_TYPE_INFO = [
     label: "Google Play",
     description: "Reviews from the Google Play Store for a given app ID.",
     configFields: [
-      { key: "appId", label: "App ID", placeholder: "com.spotify.music", required: true },
+      { key: "appId", label: "App ID", placeholder: "com.grofers.customerapp", required: true },
       { key: "lang", label: "Language", placeholder: "en", required: false },
     ],
   },
@@ -241,7 +241,7 @@ export const SOURCE_TYPE_INFO = [
     label: "App Store",
     description: "Reviews from the Apple App Store for a given numeric app ID.",
     configFields: [
-      { key: "appId", label: "App ID", placeholder: "324684580", required: true },
+      { key: "appId", label: "App ID", placeholder: "1084248054", required: true },
       { key: "country", label: "Country", placeholder: "us", required: false },
     ],
   },
@@ -250,7 +250,7 @@ export const SOURCE_TYPE_INFO = [
     label: "Reddit",
     description: "Posts from a subreddit via the public JSON API (no key needed). Real fetch attempted.",
     configFields: [
-      { key: "subreddit", label: "Subreddit", placeholder: "spotify", required: true },
+      { key: "subreddit", label: "Subreddit", placeholder: "blinkit", required: true },
       { key: "query", label: "Search query (optional)", placeholder: "discovery", required: false },
     ],
   },
@@ -259,7 +259,7 @@ export const SOURCE_TYPE_INFO = [
     label: "Twitter / X",
     description: "Tweets matching a query (requires an Apify/Twitter API key in production).",
     configFields: [
-      { key: "query", label: "Query", placeholder: "spotify discovery", required: true },
+      { key: "query", label: "Query", placeholder: "blinkit grocery", required: true },
       { key: "limit", label: "Limit", placeholder: "100", required: false },
     ],
   },

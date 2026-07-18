@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     "product analytics",
     "AI",
     "music discovery",
-    "Spotify",
+    "Blinkit",
     "RAG",
   ],
   authors: [{ name: "ReviewPulse" }],

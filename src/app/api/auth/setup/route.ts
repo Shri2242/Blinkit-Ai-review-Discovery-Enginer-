@@ -7,13 +7,13 @@ import { errorResponse, ApiError } from "@/lib/rbac";
 export const dynamic = "force-dynamic";
 
 // POST /api/auth/setup — first-run bootstrap.
-// Creates the default admin user + demo project + 105 reviews, then issues a
+// Creates the default admin user + demo project + 50 reviews, then issues a
 // session. Only works if NO users exist yet (idempotent guard). Use this on
 // first deploy, or after a full DB wipe.
 export async function POST() {
   try {
-    const existingUsers = await db.user.count();
-    if (existingUsers > 0) {
+    const existingProjects = await db.project.count();
+    if (existingProjects > 0) {
       throw new ApiError(409, "Setup already complete. Log in or reseed from Settings instead.");
     }
     const result = await seedDatabase(db);

@@ -760,7 +760,7 @@ export function ReviewsView() {
         <Input
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
-          placeholder="Ask anything: “Why are users frustrated with discovery?”"
+          placeholder="Ask anything: “Why do users repeatedly buy from the same categories?”"
           className="h-10 flex-1 border-0 bg-transparent px-2 text-sm shadow-none focus-visible:ring-0"
           aria-label="Ask AI a question about your reviews"
         />

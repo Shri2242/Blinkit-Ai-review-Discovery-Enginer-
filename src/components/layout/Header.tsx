@@ -202,13 +202,24 @@ export function Header({ onOpenLanding }: { onOpenLanding: () => void }) {
         </button>
 
         <a
-          href="https://github.com/Shri2242/Ai-Review-Discovery-Engine"
+          href="https://github.com/Shri2242/Blinkit-Ai-review-Discovery-Enginer-"
           target="_blank"
           rel="noreferrer"
           className="hidden h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary/60 hover:text-foreground sm:flex"
           aria-label="GitHub"
         >
           <Github className="h-4 w-4" />
+        </a>
+
+        <a
+          href="https://github.com/Shri2242"
+          target="_blank"
+          rel="noreferrer"
+          className="hidden h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-border/60 hover:ring-2 hover:ring-primary/50 transition sm:flex ml-2"
+          aria-label="GitHub Profile"
+          title="Shri2242"
+        >
+          <img src="https://github.com/Shri2242.png" alt="Shri2242" className="h-full w-full object-cover bg-secondary" />
         </a>
 
         {/* User menu removed for demo mode (everyone is anonymous demo user) */}
@@ -226,7 +237,7 @@ export function Header({ onOpenLanding }: { onOpenLanding: () => void }) {
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
               <Label htmlFor="proj-name">Project name</Label>
-              <Input id="proj-name" value={projName} onChange={(e) => setProjName(e.target.value)} placeholder="e.g. Spotify — Podcast Discovery" />
+              <Input id="proj-name" value={projName} onChange={(e) => setProjName(e.target.value)} placeholder="e.g. Blinkit Fast Delivery" />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="proj-desc">Description (optional)</Label>

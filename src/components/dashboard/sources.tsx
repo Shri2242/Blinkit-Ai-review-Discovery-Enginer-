@@ -96,7 +96,7 @@ interface ConfigField {
 /** Per-source-type config fields rendered in the "Add source" modal. */
 const SOURCE_FIELD_DEFS: Record<SourceTypeKey, ConfigField[]> = {
   google_play: [
-    { key: "appId", label: "App ID", placeholder: "com.spotify.music", defaultValue: "com.spotify.music" },
+    { key: "appId", label: "App ID", placeholder: "com.grofers.customerapp", defaultValue: "com.grofers.customerapp" },
     { key: "lang", label: "Language", placeholder: "en", defaultValue: "en" },
   ],
   app_store: [
@@ -104,11 +104,11 @@ const SOURCE_FIELD_DEFS: Record<SourceTypeKey, ConfigField[]> = {
     { key: "country", label: "Country", placeholder: "us", defaultValue: "us" },
   ],
   reddit: [
-    { key: "subreddit", label: "Subreddit", placeholder: "spotify", defaultValue: "spotify" },
+    { key: "subreddit", label: "Subreddit", placeholder: "blinkit", defaultValue: "blinkit" },
     { key: "sort", label: "Sort", placeholder: "new", defaultValue: "new" },
   ],
   twitter: [
-    { key: "query", label: "Query", placeholder: "spotify app", defaultValue: "spotify app" },
+    { key: "query", label: "Query", placeholder: "blinkit app", defaultValue: "blinkit app" },
     { key: "limit", label: "Limit", placeholder: "50", defaultValue: "50" },
   ],
 };
@@ -124,25 +124,25 @@ interface Preset {
 /** Quick preset cards shown at the top of the Automated Sources tab. */
 const PRESETS: Preset[] = [
   {
-    label: "Spotify · Google Play",
-    description: "Pull newest reviews from the Spotify Android app on Google Play.",
+    label: "blinkit · Google Play",
+    description: "Pull newest reviews from the blinkit Android app on Google Play.",
     sourceType: "google_play",
-    name: "Spotify — Google Play Reviews",
-    config: { appId: "com.spotify.music", lang: "en", sort: "newest" },
+    name: "blinkit — Google Play Reviews",
+    config: { appId: "com.grofers.customerapp", lang: "en", sort: "newest" },
   },
   {
-    label: "Spotify · App Store",
-    description: "Pull newest reviews from the Spotify iOS app on the App Store.",
+    label: "blinkit · App Store",
+    description: "Pull newest reviews from the blinkit iOS app on the App Store.",
     sourceType: "app_store",
-    name: "Spotify — App Store Reviews",
+    name: "blinkit — App Store Reviews",
     config: { appId: "324684580", country: "us" },
   },
   {
-    label: "r/spotify · Reddit",
-    description: "Crawl newest posts and top comments from the r/spotify subreddit.",
+    label: "r/blinkit · Reddit",
+    description: "Crawl newest posts and top comments from the r/blinkit subreddit.",
     sourceType: "reddit",
-    name: "r/spotify — Reddit Posts",
-    config: { subreddit: "spotify", sort: "new" },
+    name: "r/blinkit — Reddit Posts",
+    config: { subreddit: "blinkit", sort: "new" },
   },
 ];
 
@@ -150,12 +150,12 @@ const DEFAULT_SCHEDULE = "0 9 * * *";
 
 /** 6-row sample CSV that successfully ingests via /api/ingest. */
 const SAMPLE_CSV = `text,rating,source,author,title,source_review_id
-"Spotify keeps removing songs from my Discover Weekly — please stop doing this!",2,google_play,jane_doe42,Discover Weekly keeps deleting songs,gp_demo_1001
+"blinkit keeps removing items from my Fresh Produce Delivery — please stop doing this!",2,google_play,jane_doe42,Fresh Produce Delivery keeps deleting items,gp_demo_1001
 "The new UI is so confusing — I can't find my library anymore. Bring back the old layout!",1,app_store,music_lover_88,Bring back the old library UI,as_demo_2002
-"I love the AI DJ feature — finally discovered 3 new artists this week!",5,reddit,u/beatsfanatic,,rd_demo_3003
+"I love the AI DJ feature — finally discovered 3 new brands this week!",5,reddit,u/beatsfanatic,,rd_demo_3003
 "Crashes every time I try to play a downloaded playlist offline. Used to work fine last month.",1,google_play,mike_runner,Offline downloads crash on play,gp_demo_1004
-"Can we get a way to filter Discover Weekly by genre? That would be amazing.",4,app_store,synthwave_kid,Genre filter for Discover Weekly,as_demo_2005
-"Why does Spotify Wrapped show wrong stats this year? My top artist is wrong.",2,twitter,@wrappedconfused,,tw_demo_4006`;
+"Can we get a way to filter Fresh Produce Delivery by genre? That would be amazing.",4,app_store,synthwave_kid,Genre filter for Fresh Produce Delivery,as_demo_2005
+"Why does blinkit Yearly Savings show wrong stats this year? My top brand is wrong.",2,twitter,@Yearly Savingsconfused,,tw_demo_4006`;
 
 /* ============================================================= *
  * Helpers
@@ -447,7 +447,7 @@ export function SourcesView() {
           <div>
             <div className="mb-2 flex items-center justify-between">
               <h3 className="font-heading text-sm font-semibold text-foreground">Quick presets</h3>
-              <p className="text-xs text-muted-foreground">One-click setup for Spotify collectors.</p>
+              <p className="text-xs text-muted-foreground">One-click setup for blinkit collectors.</p>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {PRESETS.map((p) => (
@@ -846,7 +846,7 @@ function AddSourceDialog({
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Spotify — Google Play Reviews"
+              placeholder="e.g. blinkit — Google Play Reviews"
             />
           </div>
 
@@ -1192,7 +1192,7 @@ function ManualUpload() {
               Example row
             </p>
             <code className="block whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-foreground/80">
-              {`"Discover Weekly keeps surfacing the same 20 songs",2,google_play,jane_doe42,Playlist fatigue,gp_12345`}
+              {`"Fresh Produce Delivery keeps surfacing the same 20 items",2,google_play,jane_doe42,Playlist fatigue,gp_12345`}
             </code>
           </div>
         </div>

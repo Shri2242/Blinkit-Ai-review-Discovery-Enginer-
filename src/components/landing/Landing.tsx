@@ -79,7 +79,7 @@ const STEPS = [
 ];
 
 const STATS = [
-  { value: "105+", label: "Reviews analyzed" },
+  { value: "50+", label: "Reviews analyzed" },
   { value: "4", label: "Sources connected" },
   { value: "6", label: "Segment dimensions" },
   { value: "0", label: "Manual tagging hours" },
@@ -293,7 +293,7 @@ jobs:
                 Stop reading reviews one at a time.
               </h2>
               <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground md:text-base">
-                The demo is pre-loaded with 105 real-world-style Spotify discovery reviews. Click through the
+                The demo is pre-loaded with 50 real-world-style Blinkit grocery reviews. Click through the
                 dashboard, ask the AI Chat a question, and watch it cite its sources.
               </p>
               <div className="mt-7 flex justify-center">
