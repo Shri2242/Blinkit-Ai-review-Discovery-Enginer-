@@ -114,6 +114,11 @@ export default function Home() {
     };
   }, [setAuth]);
 
+  // Render landing page instantly without blocking on session load
+  if (view === "landing") {
+    return <Landing />;
+  }
+
   // Loading state while the session check is in flight.
   if (!authReady) {
     return (
@@ -126,11 +131,6 @@ export default function Home() {
         </div>
       </div>
     );
-  }
-
-  // Render components conditionally based on active view state
-  if (view === "landing") {
-    return <Landing />;
   }
   if (view === "login") {
     return <AuthView mode="login" />;
