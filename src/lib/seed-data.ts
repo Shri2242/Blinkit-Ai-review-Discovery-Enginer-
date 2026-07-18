@@ -151,7 +151,7 @@ export async function seedDatabase(db: PrismaClient): Promise<{
 
   const project = await db.project.create({
     data: {
-      name: "Blinkit Review Discovery Enginer",
+      name: "Blinkit Review Discovery Engine",
       description: "Growth team initiative: analyze user feedback to increase meaningful product discovery.",
       ownerId: admin.id,
       members: { create: { userId: admin.id, role: "admin" } },

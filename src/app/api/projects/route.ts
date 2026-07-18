@@ -16,7 +16,7 @@ export async function GET() {
     const projects = await db.project.findMany({
       where: {
         OR: [
-          { name: "Blinkit Review Discovery Enginer" },
+          { name: "Blinkit Review Discovery Engine" },
           { ownerId: ctx.user.id },
           { members: { some: { userId: ctx.user.id } } },
         ],

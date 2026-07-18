@@ -150,12 +150,12 @@ const DEFAULT_SCHEDULE = "0 9 * * *";
 
 /** 6-row sample CSV that successfully ingests via /api/ingest. */
 const SAMPLE_CSV = `text,rating,source,author,title,source_review_id
-"blinkit keeps removing items from my Fresh Produce Delivery — please stop doing this!",2,google_play,jane_doe42,Fresh Produce Delivery keeps deleting items,gp_demo_1001
-"The new UI is so confusing — I can't find my library anymore. Bring back the old layout!",1,app_store,music_lover_88,Bring back the old library UI,as_demo_2002
-"I love the AI DJ feature — finally discovered 3 new brands this week!",5,reddit,u/beatsfanatic,,rd_demo_3003
-"Crashes every time I try to play a downloaded playlist offline. Used to work fine last month.",1,google_play,mike_runner,Offline downloads crash on play,gp_demo_1004
-"Can we get a way to filter Fresh Produce Delivery by genre? That would be amazing.",4,app_store,synthwave_kid,Genre filter for Fresh Produce Delivery,as_demo_2005
-"Why does blinkit Yearly Savings show wrong stats this year? My top brand is wrong.",2,twitter,@Yearly Savingsconfused,,tw_demo_4006`;
+"blinkit keeps removing items from my cart during checkout — please stop doing this!",2,google_play,jane_doe42,Cart keeps deleting items,gp_demo_1001
+"The new UI is so confusing — I can't find my order history anymore. Bring back the old layout!",1,app_store,grocery_lover_88,Bring back the old order history UI,as_demo_2002
+"I love the smart cart recommendations — finally discovered 3 new local brands this week!",5,reddit,u/groceryfanatic,,rd_demo_3003
+"Crashes every time I try to complete payment on checkout. Used to work fine last month.",1,google_play,mike_runner,Checkout crashes on payment,gp_demo_1004
+"Can we get a way to filter search results by dietary preferences? That would be amazing.",4,app_store,health_junkie,Dietary preferences search filter,as_demo_2005
+"Why does blinkit Wrapped show wrong stats this year? My top grocery category is wrong.",2,twitter,@wrappedconfused,,tw_demo_4006`;
 
 /* ============================================================= *
  * Helpers
@@ -1192,7 +1192,7 @@ function ManualUpload() {
               Example row
             </p>
             <code className="block whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-foreground/80">
-              {`"Fresh Produce Delivery keeps surfacing the same 20 items",2,google_play,jane_doe42,Playlist fatigue,gp_12345`}
+              {`"Fresh Produce Delivery keeps surfacing the same 20 items",2,google_play,jane_doe42,Recommendation fatigue,gp_12345`}
             </code>
           </div>
         </div>

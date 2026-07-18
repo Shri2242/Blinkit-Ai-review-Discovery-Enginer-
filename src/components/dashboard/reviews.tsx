@@ -59,16 +59,17 @@ const SENTIMENT_OPTIONS: Sentiment[] = ["positive", "negative", "neutral", "mixe
 const SOURCE_OPTIONS: SourceType[] = ["google_play", "app_store", "reddit", "twitter", "csv_upload"];
 const PRIORITY_OPTIONS: Priority[] = ["critical", "high", "medium", "low"];
 const THEME_OPTIONS = [
-  "music_discovery",
-  "recommendation_quality",
-  "playlist_fatigue",
-  "playback_bug",
-  "ui_ux",
-  "search",
-  "offline_mode",
+  "payment",
+  "performance",
+  "usability",
+  "onboarding",
+  "features",
+  "support",
   "pricing",
-  "social_features",
-  "audio_quality",
+  "security",
+  "reliability",
+  "content",
+  "other",
 ];
 
 /* ---------------- Filters state ---------------- */

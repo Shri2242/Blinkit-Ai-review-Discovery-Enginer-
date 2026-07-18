@@ -19,12 +19,12 @@ export async function GET() {
       return Response.json({ user: null, projects: [] });
     }
 
-    // Find the default demo project "Blinkit Review Discovery Enginer" AND any projects
+    // Find the default demo project "Blinkit Review Discovery Engine" AND any projects
     // owned by the user or where they are an active member.
     const userProjects = await db.project.findMany({
       where: {
         OR: [
-          { name: "Blinkit Review Discovery Enginer" },
+          { name: "Blinkit Review Discovery Engine" },
           { ownerId: user.id },
           { members: { some: { userId: user.id } } },
         ],

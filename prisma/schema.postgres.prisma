@@ -50,7 +50,7 @@ model User {
   webhooks       WebhookConfig[]
 }
 
-/// A product/workspace being analyzed (e.g. "Spotify — Music Discovery").
+/// A product/workspace being analyzed (e.g. "Blinkit — Grocery Delivery").
 model Project {
   id            String   @id @default(cuid())
   name          String

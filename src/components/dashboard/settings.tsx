@@ -31,7 +31,7 @@ export function SettingsView() {
               <Label htmlFor="project-name-input">Project name</Label>
               <Input
                 id="project-name-input"
-                value={activeProject?.name ?? "Blinkit Review Discovery Enginer"}
+                value={activeProject?.name ?? "Blinkit Review Discovery Engine"}
                 disabled
               />
             </div>

@@ -64,7 +64,7 @@ function SetupDemoDataView() {
               </li>
               <li className="flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                <span>Blinkit Music-Discovery project workspace</span>
+                <span>Blinkit Review Discovery Engine project workspace</span>
               </li>
               <li className="flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />

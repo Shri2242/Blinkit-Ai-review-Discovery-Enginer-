@@ -90,15 +90,15 @@ function redditPostToFetched(post: RedditPost): FetchedReview {
 /* ----------------------------- Simulated samples (fallback) ----------------------------- */
 
 const GOOGLE_PLAY_SAMPLES: Omit<FetchedReview, "sourceReviewId" | "contentHash" | "source">[] = [
-  { title: "Discover Weekly is broken", text: "My Discover Weekly used to introduce me to new artists. Now it just recycles songs I already have in my library. Feels like the algorithm gave up.", rating: 2, author: "Marcus T." },
-  { title: "Great for finding new music", text: "Release Radar actually surfaces new drops from artists I follow. Found three new bands this month. Keep it up.", rating: 5, author: "Priya K." },
-  { title: "Same songs on repeat", text: "Every time I open the app it auto-plays the same 15 songs. I want to discover new music, not relive yesterday.", rating: 2, author: "Diego R." },
+  { title: "Smart cart suggestions are broken", text: "My smart cart used to introduce me to new items I actually needed. Now it just recycles items I already bought yesterday. Feels like the algorithm gave up.", rating: 2, author: "Marcus T." },
+  { title: "Great for discovering fresh items", text: "The daily recommendations actually surface new organic produce and products from brands I love. Found three new snacks this month. Keep it up.", rating: 5, author: "Priya K." },
+  { title: "Same items on repeat", text: "Every time I open the app it recommends the same 15 products. I want to discover new items, not buy the same bread.", rating: 2, author: "Diego R." },
 ];
 
 const APP_STORE_SAMPLES: Omit<FetchedReview, "sourceReviewId" | "contentHash" | "source">[] = [
-  { title: "Recommendations are stuck", text: "I liked one lo-fi playlist months ago and now my whole home screen is lo-fi. I like other genres too! The recommendation engine is way too narrow.", rating: 2, author: "sarah_music_99" },
-  { title: "Wish I could explore by mood", text: "Would love a proper mood-based discovery that isn't just 'Focus' or 'Chill'. Give me 'melancholic autumn evening' playlists.", rating: 4, author: "jordanplays" },
-  { title: "Crashes on offline mode", text: "Downloaded playlists for my flight and the app crashed every time I tried to play them offline. Useless.", rating: 1, author: "FrequentFlyer22" },
+  { title: "Recommendations are stuck", text: "I ordered one pack of diapers months ago for a guest and now my whole home screen is baby products. I buy normal groceries too! The recommendation engine is way too narrow.", rating: 2, author: "sarah_grocery_99" },
+  { title: "Wish I could explore by dietary preference", text: "Would love proper dietary filters that aren't just 'Organic' or 'Gluten-Free'. Give me custom allergy-safe quick search buttons.", rating: 4, author: "jordaneats" },
+  { title: "Crashes on payment checkout", text: "Loaded my cart for checkout and the app crashed every time I tried to make a payment. Useless.", rating: 1, author: "FrequentShopper22" },
 ];
 
 const REDDIT_SAMPLES: Omit<FetchedReview, "sourceReviewId" | "contentHash" | "source">[] = [

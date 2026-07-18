@@ -216,7 +216,7 @@ export function OverviewView() {
       <div className="space-y-6">
         <SectionHeader
           title="Overview"
-          description="Real-time analysis of Blinkit music-discovery feedback across all sources."
+          description="Real-time analysis of Blinkit customer reviews and product discovery feedback across all sources."
         />
         <LoadingBlock label="Loading overview…" />
       </div>
@@ -228,7 +228,7 @@ export function OverviewView() {
       <div className="space-y-6">
         <SectionHeader
           title="Overview"
-          description="Real-time analysis of Blinkit music-discovery feedback across all sources."
+          description="Real-time analysis of Blinkit customer reviews and product discovery feedback across all sources."
         />
         <div className="flex flex-col items-center justify-center p-8 border border-border/60 bg-card rounded-xl shadow-sm text-center max-w-xl mx-auto mt-12">
           <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary mb-4">
@@ -252,7 +252,7 @@ export function OverviewView() {
       <div className="space-y-6">
         <SectionHeader
           title="Overview"
-          description="Real-time analysis of Blinkit music-discovery feedback across all sources."
+          description="Real-time analysis of Blinkit customer reviews and product discovery feedback across all sources."
         />
         <EmptyState
           icon={<AlertTriangle className="h-8 w-8" />}
@@ -268,7 +268,7 @@ export function OverviewView() {
       <div className="space-y-6">
         <SectionHeader
           title="Overview"
-          description="Real-time analysis of Blinkit music-discovery feedback across all sources."
+          description="Real-time analysis of Blinkit customer reviews and product discovery feedback across all sources."
         />
         <div className="flex flex-col items-center justify-center p-8 border border-border/60 bg-card rounded-xl shadow-sm text-center max-w-xl mx-auto mt-8">
           <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary mb-4">
@@ -292,7 +292,7 @@ export function OverviewView() {
     <div className="space-y-6">
       <SectionHeader
         title="Overview"
-        description="Real-time analysis of Blinkit music-discovery feedback across all sources."
+        description="Real-time analysis of Blinkit customer reviews and product discovery feedback across all sources."
       />
 
       {/* 1. Stat cards */}

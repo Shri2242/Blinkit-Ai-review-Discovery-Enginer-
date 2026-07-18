@@ -209,11 +209,11 @@ function extractJsonArray(content: string): unknown[] {
 export function heuristicAnalysis(r: ReviewForAnalysis): AnalysisResult {
   const t = r.text.toLowerCase();
   const negative =
-    /hate|terrible|worst|broken|bug|crash|annoying|frustrat|useless|garbage|awful|stuck|repeat|same song|can't find|hard to find|missing|freez|laggy|paywall|expensive|ads/.test(
+    /hate|terrible|worst|broken|bug|crash|annoying|frustrat|useless|garbage|awful|stuck|repeat|same item|same product|can't find|hard to find|missing|freez|laggy|paywall|expensive|ads/.test(
       t,
     );
   const positive = /love|great|amazing|perfect|awesome|best|fantastic|excellent|happy/.test(t);
-  const bug = /crash|bug|freeze|broken|glitch|error|won't play|stops|lag/.test(t);
+  const bug = /crash|bug|freeze|broken|glitch|error|won't load|payment fail|lag/.test(t);
   const feature = /wish|would love|should add|need a|please add|feature request|missing feature|bring back|could you/.test(
     t,
   );

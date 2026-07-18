@@ -30,7 +30,7 @@ export const metadata: Metadata = {
     "review analysis",
     "product analytics",
     "AI",
-    "music discovery",
+    "product discovery",
     "Blinkit",
     "RAG",
   ],
