@@ -17,7 +17,7 @@ export function ReportsView() {
     if (!activeProjectId) return;
     try {
       setLoading(true);
-      const data = await api.reviews({ limit: 100 }, activeProjectId);
+      const data = await api.reviews({ limit: 10000 }, activeProjectId);
       // api.reviews returns either direct array or { reviews: [...] }
       const list = Array.isArray(data) ? data : data.reviews || [];
       setReviews(list);

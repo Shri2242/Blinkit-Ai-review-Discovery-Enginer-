@@ -91,6 +91,6 @@ export const reviewQuerySchema = z.object({
   isBug: z.enum(["true", "false"]).optional(),
   isFeatureRequest: z.enum(["true", "false"]).optional(),
   search: z.string().max(500).optional(),
-  limit: z.coerce.number().int().min(1).max(500).default(100),
+  limit: z.coerce.number().int().min(1).max(10000).default(100),
   offset: z.coerce.number().int().min(0).default(0),
 });
