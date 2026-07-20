@@ -34,7 +34,7 @@ export async function getAuthContext(projectId?: string): Promise<AuthContext> {
       if (apiAuthToken && token === apiAuthToken) {
         const firstProj = projectId 
           ? await db.project.findUnique({ where: { id: projectId } })
-          : (await db.project.findFirst({ where: { name: "Blinkit — Grocery Delivery" } }))
+          : (await db.project.findFirst({ where: { name: "Blinkit Review Discovery Engine" } }))
             || (await db.project.findFirst({ orderBy: { createdAt: "asc" } }));
         
         return {
