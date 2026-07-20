@@ -19,6 +19,17 @@ export async function GET() {
       return Response.json({ user: null, projects: [] });
     }
 
+    // Self-healing rename: if a project named "Blinkit Review Discovery Enginer" exists, rename it.
+    const oldProject = await db.project.findFirst({
+      where: { name: "Blinkit Review Discovery Enginer" },
+    });
+    if (oldProject) {
+      await db.project.update({
+        where: { id: oldProject.id },
+        data: { name: "Blinkit Review Discovery Engine" },
+      });
+    }
+
     // Find the default demo project "Blinkit Review Discovery Engine" AND any projects
     // owned by the user or where they are an active member.
     const userProjects = await db.project.findMany({

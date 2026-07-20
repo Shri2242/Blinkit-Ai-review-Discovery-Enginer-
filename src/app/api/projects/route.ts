@@ -12,6 +12,17 @@ export async function GET() {
     if (!ctx.user) {
       return Response.json({ error: "Authentication required" }, { status: 401 });
     }
+    // Self-healing rename: if a project named "Blinkit Review Discovery Enginer" exists, rename it.
+    const oldProject = await db.project.findFirst({
+      where: { name: "Blinkit Review Discovery Enginer" },
+    });
+    if (oldProject) {
+      await db.project.update({
+        where: { id: oldProject.id },
+        data: { name: "Blinkit Review Discovery Engine" },
+      });
+    }
+
     // Return the global demo project OR projects owned by the authenticated user.
     const projects = await db.project.findMany({
       where: {
