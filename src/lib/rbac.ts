@@ -102,9 +102,9 @@ export async function getAuthContext(projectId?: string): Promise<AuthContext> {
       membership = { role: "admin" as Role };
     }
   } else {
-    // [DEMO MODE] Try to find the default demo project "Blinkit — Grocery Delivery" first,
+    // [DEMO MODE] Try to find the default demo project "Blinkit Review Discovery Engine" first,
     // otherwise fallback to the first project in creation order.
-    let firstProj = await db.project.findFirst({ where: { name: "Blinkit — Grocery Delivery" } });
+    let firstProj = await db.project.findFirst({ where: { name: "Blinkit Review Discovery Engine" } });
     if (!firstProj) {
       firstProj = await db.project.findFirst({ orderBy: { createdAt: "asc" } });
     }
